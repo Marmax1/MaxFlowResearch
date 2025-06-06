@@ -168,8 +168,6 @@ long long DataStorage::GetMaxFlowFordFulkerson(string s, string t) {
 
 	long long maxFlow;
 
-	//cout << iter->FordFulkersonCheck(s, t) << '\n';
-	cout << iter->FordFulkerson(s, t) << '\n';
 	//cout << iter->FordFulkersonMatrix(s, t) << '\n';
 	cout << iter->FordFulkersonBFS(s, t) << '\n';
 
@@ -220,7 +218,7 @@ long long DataStorage::GetMaxFlowDinic(string s, string t) {
 	iter = --graphs.end();
 
 	CreateCopyGraph(iter->GetName() + "Copy");
-	maxFlow = iter->getMaxFlowDinicScaling(0, iter->GetCountOfNodes() - 1);
+	maxFlow = iter->getMaxFlowDinicWithEdges(0, iter->GetCountOfNodes() - 1);
 	DeleteGraph();
 	iter = --graphs.end();
 	return maxFlow;
@@ -234,6 +232,16 @@ long long DataStorage::MaxFlowWO(string s, string t) {
 		throw string("Какой-то из вершин не существует");
 
 	return iter->MaxFlowWO(s, t);
+}
+
+long long DataStorage::gargKonemannMaxFlow() {
+	if (!iter->IsOriented() || !iter->IsWeighted())
+		throw string("Граф должен быть ориентированным и взвешенным");
+
+	if (!(iter->IsNodeExist("source") && iter->IsNodeExist("sink")))
+		throw string("Какой-то из вершин не существует");
+
+	return iter->gargKonemannMaxFlow(0, iter->GetCountOfNodes() - 1);
 }
 
 void DataStorage::WriteSpeedExecutionMaxFlowMethodsFor(unsigned int countNodes, float density, unsigned int maxWeightValue, unsigned int countGraphs) {
@@ -250,7 +258,6 @@ void DataStorage::WriteSpeedExecutionMaxFlowMethodsFor(unsigned int countNodes, 
 
 	vector<string> methodNames = {
 		"FordFulkerson (матрица)",
-		"FordFulkersonScaling",
 		"PushRelabelMatrix",
 		"PushRelabelMatrix_v2",
 		"PushRelabelMatrix_v3",
@@ -258,7 +265,8 @@ void DataStorage::WriteSpeedExecutionMaxFlowMethodsFor(unsigned int countNodes, 
 		//"ApproximatorMaxFlowSherman",
 		"DinicMaxFlow unordered_map",
 		"DinicMaxFlowMatrix",
-		"DinicMaxFlowScaling"
+		"DinicMaxFlowWithEdges",
+		"gargKonemannMaxFlow"
 	};
 	
 	while (n++ < countGraphs) {
@@ -273,31 +281,26 @@ void DataStorage::WriteSpeedExecutionMaxFlowMethodsFor(unsigned int countNodes, 
 		end = chrono::steady_clock::now();
 		totalTime[0] += chrono::duration_cast<chrono::microseconds>(end - start).count();
 
-		start = chrono::steady_clock::now();
-		maxFlow = iter->FordFulkersonScaling(s, t);
-		end = chrono::steady_clock::now();
-		totalTime[1] += chrono::duration_cast<chrono::microseconds>(end - start).count();
-
 		// алгоритмы PushRelabel
 		start = chrono::steady_clock::now();
 		maxFlow = iter->getMaxFlowPushRelabel(0, currentCountNodes - 1);
 		end = chrono::steady_clock::now();
-		totalTime[2] += chrono::duration_cast<chrono::microseconds>(end - start).count();
+		totalTime[1] += chrono::duration_cast<chrono::microseconds>(end - start).count();
 
 		start = chrono::steady_clock::now();
 		maxFlow = iter->getMaxFlowPushRelabel_v2(0, currentCountNodes - 1);
 		end = chrono::steady_clock::now();
-		totalTime[3] += chrono::duration_cast<chrono::microseconds>(end - start).count();
+		totalTime[2] += chrono::duration_cast<chrono::microseconds>(end - start).count();
 
 		start = chrono::steady_clock::now();
 		maxFlow = iter->getMaxFlowPushRelabel_v3(0, currentCountNodes - 1);
 		end = chrono::steady_clock::now();
-		totalTime[4] += chrono::duration_cast<chrono::microseconds>(end - start).count();
+		totalTime[3] += chrono::duration_cast<chrono::microseconds>(end - start).count();
 
 		start = chrono::steady_clock::now();
 		maxFlow = iter->PushRelabelParallel(s, t);
 		end = chrono::steady_clock::now();
-		totalTime[5] += chrono::duration_cast<chrono::microseconds>(end - start).count();
+		totalTime[4] += chrono::duration_cast<chrono::microseconds>(end - start).count();
 
 
 		//// ApproximatorMaxFlowSherman
@@ -317,7 +320,7 @@ void DataStorage::WriteSpeedExecutionMaxFlowMethodsFor(unsigned int countNodes, 
 		start = chrono::steady_clock::now();
 		maxFlow = iter->DinicMaxFlowMatrix(s, t);
 		end = chrono::steady_clock::now();
-		totalTime[6] += chrono::duration_cast<chrono::microseconds>(end - start).count();
+		totalTime[5] += chrono::duration_cast<chrono::microseconds>(end - start).count();
 		DeleteGraph();
 		iter = --graphs.end();
 
@@ -325,13 +328,21 @@ void DataStorage::WriteSpeedExecutionMaxFlowMethodsFor(unsigned int countNodes, 
 		start = chrono::steady_clock::now();
 		maxFlow = iter->getMaxFlowDinic(0, currentCountNodes - 1);
 		end = chrono::steady_clock::now();
+		totalTime[6] += chrono::duration_cast<chrono::microseconds>(end - start).count();
+		DeleteGraph();
+		iter = --graphs.end();
+
+		CreateCopyGraph(iter->GetName() + "Copy");
+		start = chrono::steady_clock::now();
+		maxFlow = iter->getMaxFlowDinicWithEdges(0, currentCountNodes - 1);
+		end = chrono::steady_clock::now();
 		totalTime[7] += chrono::duration_cast<chrono::microseconds>(end - start).count();
 		DeleteGraph();
 		iter = --graphs.end();
 
 		CreateCopyGraph(iter->GetName() + "Copy");
 		start = chrono::steady_clock::now();
-		maxFlow = iter->getMaxFlowDinicScaling(0, currentCountNodes - 1);
+		maxFlow = iter->gargKonemannMaxFlow(0, currentCountNodes - 1);
 		end = chrono::steady_clock::now();
 		totalTime[8] += chrono::duration_cast<chrono::microseconds>(end - start).count();
 		DeleteGraph();
@@ -355,7 +366,7 @@ void DataStorage::WriteSpeedExecutionMaxFlowMethodsFor(unsigned int countNodes, 
 }
 
 void DataStorage::CompareMaxFlowMetods() {
-	WriteSpeedExecutionMaxFlowMethodsFor(100, 0.5, 100, 20);
+	WriteSpeedExecutionMaxFlowMethodsFor(200, 0.5, 10000, 20);
 	//WriteSpeedExecutionMaxFlowMethodsFor(300, 0.3, 100);
 	//WriteSpeedExecutionMaxFlowMethodsFor(300, 0.8, 100);
 }

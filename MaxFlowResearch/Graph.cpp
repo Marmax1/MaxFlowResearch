@@ -21,16 +21,6 @@ public:
 	}
 };
 
-struct Graph::FlowEdge {
-	string from;
-	string to;
-	long long capacity;
-	long long flow;
-
-	FlowEdge(string f, string t, long long c) : from(f), to(t), capacity(c), flow(0) {}
-	FlowEdge(string f, string t, long long c, long long flow) : from(f), to(t), capacity(c), flow(flow) {}
-};
-
 struct Graph::Cluster {
 	string center; // Центр кластера
 	unordered_set<string> nodes; // Узлы в кластере
@@ -60,53 +50,6 @@ vector<string> Graph::MergeVectors(vector<string> first, vector<string> second) 
 	vector<string> vec(first);
 	vec.insert(vec.end(), second.begin(), second.end());
 	return vec;
-}
-
-long long Graph::Remains(FlowEdge edge) {
-	return edge.capacity - edge.flow;
-}
-
-long long Graph::GetIndexReverseEdge(vector<FlowEdge>& e, long long curIndex) {
-	if (curIndex == 0)
-		return 1;
-
-	if (curIndex == e.size() - 1)
-		return curIndex - 1;
-
-	if (e[curIndex - 1].from == e[curIndex].to && e[curIndex - 1].to == e[curIndex].from)
-		return curIndex - 1;
-
-	if (e[curIndex + 1].from == e[curIndex].to && e[curIndex + 1].to == e[curIndex].from)
-		return curIndex + 1;
-}
-
-long long Graph::DfsForFlow(string& curNode, long long curCapacity, string& T, vector<FlowEdge>& e, unordered_map<string, vector<long long>>& indexes) {
-	if (curNode == T) {
-		cout << curNode << " <- ";
-		return curCapacity;
-	}
-
-	if (IsNodeVisited(curNode))
-		return 0;
-
-	visited.insert(curNode);
-
-	for (long long ind : indexes[curNode]) {
-		if (Remains(e[ind]) == 0)
-			continue;
-
-		long long res = DfsForFlow(e[ind].to, min(Remains(e[ind]), curCapacity), T, e, indexes);
-
-		if (res > 0) {
-			e[ind].flow += res;	// прямое ребро
-			long long indexRev = GetIndexReverseEdge(e, ind);
-			e[indexRev].flow -= res;	// обратное
-			cout << curNode << " <- ";
-			return res;
-		}
-	}
-
-	return 0;
 }
 
 long long Graph::DFSWithDelta(string u, string t, long long delta, unordered_map<string, string>& parent) {
@@ -170,6 +113,8 @@ Graph::Graph(const Graph& gr) {
 	weighted = gr.weighted;
 	oriented = gr.oriented;
 	adjacencyMatrix = gr.adjacencyMatrix;
+	adj = gr.adj;
+	initGargKonemann();
 }
 
 void Graph::BuildAdjacencyMatrix() {
@@ -220,11 +165,25 @@ void Graph::BuildAdjacencyMatrix() {
 	}
 }
 
+void Graph::BuildAdjEdgesFromMatrix() {
+	int n = adjacencyMatrix.size();
+	adj.resize(n);
+	for (int from = 0; from < n; from++) {
+		for (int to = from; to < n; to++) {
+			long long capacity = adjacencyMatrix[from][to];
+			if (capacity != 0) {
+				adj[from].push_back({ to, capacity, (int)adj[to].size() });
+				adj[to].push_back({ from, 0, (int)adj[from].size() - 1 });
+			}
+		}
+	}
+}
+
 /*
 распределяем доступное нам количество дуг по ним, но с учётом того, что компоненты должны быть связные
 	a. Cтроим случайное остовное дерево от 1 вершины до последней (для связности)
 	b. Остальные дуги, которые надо распределить, кладём в массив в виде true, перемешиваем с false-ами (общее кол-во true = макс. возможное кол-во дуг
-		 - (минус) кол-во дуг в остовнjv дереве). Теперь,идя по всем дугам по очереди в матрице смежности и одновременно по массиву, я могу расставить
+		 - (минус) кол-во дуг в остовном дереве). Теперь,идя по всем дугам по очереди в матрице смежности и одновременно по массиву, я могу расставить
 		 дуги случайным образом, не забывая пропускать уже созданные дуги из-за остового дерева
 */
 void Graph::TransformToRandomFlowGraph(string name, unsigned int countNodes, float density, unsigned int maxWeightValues) {
@@ -247,7 +206,6 @@ void Graph::TransformToRandomFlowGraph(string name, unsigned int countNodes, flo
 	mt19937 gen(rd());
 	uniform_int_distribution<long long> weight_dist(1, maxWeightValues);
 
-	// Step 1: Build directed spanning tree (Krusky-like)
 	vector<unsigned int> parent(countNodes);
 	for (unsigned int i = 0; i < countNodes; i++) {
 		parent[i] = i;
@@ -359,30 +317,9 @@ void Graph::TransformToRandomFlowGraph(string name, unsigned int countNodes, flo
 	}
 
 	BuildAdjacencyMatrix();
+	BuildAdjEdgesFromMatrix();
+	initGargKonemann();
 }
-
-void Graph::TransformToDirected() {
-	oriented = false;
-	unordered_map<string, unordered_map<string, long long>> oldNodes = this->nodes;
-	DeleteAllNodes();
-
-	for (auto pair : oldNodes) {
-		string nodeFirst = pair.first;
-		AddNode(nodeFirst);
-	}
-
-	for (auto pair : oldNodes) {
-		string nodeFirst = pair.first;
-		for (auto edge : pair.second) {
-			string nodeSecond = edge.first;
-			long long w = edge.second;
-			AddEdge(nodeFirst, nodeSecond, w);
-		}
-	}
-
-	BuildAdjacencyMatrix();
-}
-
 
 bool Graph::IsNodeExist(string node) {
 	return nodes.find(node) != nodes.end();
@@ -556,79 +493,6 @@ long long Graph::FordFulkersonMatrix(string s, string t) {
 	}
 
 	return max_flow;
-}
-
-long long Graph::FordFulkerson(string s, string t) {
-
-	// Создаем список всех рёбер (прямых и обратных)
-	vector<FlowEdge> edges;
-	unordered_map<string, vector<long long>> adj;
-
-	// Добавляем прямые рёбра
-	for (auto it = nodes.begin(); it != nodes.end(); ++it) {
-		const string& from = it->first;
-		const auto& neighbors = it->second;
-
-		for (auto neighbor_it = neighbors.begin(); neighbor_it != neighbors.end(); ++neighbor_it) {
-			const string& to = neighbor_it->first;
-			long long capacity = neighbor_it->second;
-
-			edges.emplace_back(from, to, capacity);
-			adj[from].push_back(edges.size() - 1);
-
-			// Добавляем обратное ребро с нулевой пропускной способностью
-			edges.emplace_back(to, from, 0);
-			adj[to].push_back(edges.size() - 1);
-		}
-	}
-
-	long long maxFlow = 0;
-
-	// Функция поиска увеличивающего пути через DFS
-	function<long long(string, string, long long, unordered_map<string, long long>&)> dfs =
-		[&](string u, string t, long long flow, unordered_map<string, long long>& parent) -> long long {
-		visited.insert(u);
-
-		if (u == t) return flow;
-
-		for (long long edgeIndex : adj[u]) {
-			FlowEdge& edge = edges[edgeIndex];
-			long long residual = edge.capacity - edge.flow;
-
-			if (residual > 0 && !IsNodeVisited(edge.to)) {
-				parent[edge.to] = edgeIndex;
-				long long minFlow = min(flow, residual);
-				long long result = dfs(edge.to, t, minFlow, parent);
-
-				if (result > 0) {
-					return result;
-				}
-			}
-		}
-
-		return 0;
-		};
-
-	while (true) {
-		ClearVisited();
-		unordered_map<string, long long> parent;
-
-		long long flow = dfs(s, t, INF, parent);
-		if (flow == 0) break;
-
-		maxFlow += flow;
-
-		// Обновляем потоки вдоль пути
-		string current = t;
-		while (current != s) {
-			long long edgeIndex = parent[current];
-			edges[edgeIndex].flow += flow;
-			edges[edgeIndex ^ 1].flow -= flow; // обратное ребро
-			current = edges[edgeIndex].from;
-		}
-	}
-
-	return maxFlow;
 }
 
 
@@ -1708,32 +1572,146 @@ long long Graph::getMaxFlowDinic(int source, int sink) {
 }
 
 
-long long Graph::getMaxFlowDinicScaling(int source, int sink) {
+
+
+bool Graph::bfsWithEdges(int s, int t, vector<int>& level) {
+	fill(level.begin(), level.end(), -1);
+	level[s] = 0;
+
+	queue<int> q;
+	q.push(s);
+
+	while (!q.empty()) {
+		int u = q.front();
+		q.pop();
+
+		for (FlowEdge& e : adj[u]) {
+			if (e.capacity > 0 && level[e.to] == -1) {
+				level[e.to] = level[u] + 1;
+				if (e.to == t) return true; // Ранний выход
+				q.push(e.to);
+			}
+		}
+	}
+
+	return false;
+}
+
+long long Graph::dfsWithEdges(int u, int t, long long flow, vector<int>& ptr, vector<int>& level) {
+	if (u == t || flow == 0)
+		return flow;
+
+	for (int& i = ptr[u]; i < adj[u].size(); ++i) {
+		FlowEdge& e = adj[u][i];
+		if (level[e.to] == level[u] + 1 && e.capacity > 0) {
+			long long pushed = dfsWithEdges(e.to, t, min(flow, e.capacity), ptr, level);
+			if (pushed > 0) {
+				e.capacity -= pushed;
+				adj[e.to][e.rev].capacity += pushed;
+				return pushed;
+			}
+		}
+	}
+
+	return 0;
+}
+
+
+// Основной метод алгоритма Диница
+long long Graph::getMaxFlowDinicWithEdges(int source, int sink) {
+	if (source == sink)
+		return 0;
+
 	long long maxFlow = 0;
-	long long maxCap = 0;
-	for (size_t u = 0; u < adjacencyMatrix.size(); u++) {
-		for (size_t v = 0; u < adjacencyMatrix.size(); u++) {
-			if (u != v && adjacencyMatrix[u][v] != INF && adjacencyMatrix[u][v] > maxCap) {
-				maxCap = adjacencyMatrix[u][v];
-			}
+	vector<int> level(adj.size());
+	vector<int> ptr(adj.size());
+
+	while (bfsWithEdges(source, sink, level)) {
+		fill(ptr.begin(), ptr.end(), 0);
+
+		while (long long pushed = dfsWithEdges(source, sink, INF, ptr, level)) {
+			maxFlow += pushed;
 		}
 	}
-	vector<int> level(adjacencyMatrix.size());
-	vector<int> ptr(adjacencyMatrix.size());
 
-	long long delta = 1;
-	while (delta <= maxCap) delta <<= 1;
-
-	for (; delta > 0; delta >>= 1) {
-		while (bfs(source, sink, level)) {
-			fill(ptr.begin(), ptr.end(), 0);
-			while (long long pushed = dfs(source, sink, delta, ptr, level)) {
-				maxFlow += pushed;
-			}
-		}
-	}
 	return maxFlow;
 }
+
+
+
+
+
+// Приближённый
+
+void Graph::initGargKonemann() {
+	int n = adjacencyMatrix.size();
+	residual = adjacencyMatrix;
+	dual_weights.assign(n, vector<double>(n, 1.0));
+	distance.assign(n, numeric_limits<double>::max());
+	parent.assign(n, -1);
+}
+
+bool Graph::findShortestPath(int s, int t) {
+	int n = adjacencyMatrix.size();
+	distance.assign(n, numeric_limits<double>::max());
+	parent.assign(n, -1);
+	distance[s] = 0;
+
+	priority_queue<pair<double, int>, vector<pair<double, int>>, greater<pair<double, int>>> pq;
+	pq.push({ 0, s });
+
+	while (!pq.empty()) {
+		auto pair = pq.top();
+		double dist_u = pair.first;
+		int u = pair.second;
+		pq.pop();
+
+		if (u == t) break;
+		if (dist_u > distance[u]) continue;
+
+		for (int v = 0; v < n; ++v) {
+			if (residual[u][v] > 0) {
+				double weight = dual_weights[u][v] / residual[u][v];
+				if (distance[v] > distance[u] + weight) {
+					distance[v] = distance[u] + weight;
+					parent[v] = u;
+					pq.push({ distance[v], v });
+				}
+			}
+		}
+	}
+	return parent[t] != -1;
+}
+
+
+long long Graph::augmentFlow(int s, int t, double epsilon) {
+	long long delta = numeric_limits<long long>::max();
+	// Находим минимальную остаточную способность
+	for (int v = t; v != s; v = parent[v]) {
+		int u = parent[v];
+		delta = min(delta, residual[u][v]);
+	}
+	// Увеличиваем поток и обновляем двойственные веса
+	for (int v = t; v != s; v = parent[v]) {
+		int u = parent[v];
+		residual[u][v] -= delta;
+		residual[v][u] += delta;
+		dual_weights[u][v] *= (1 + epsilon * delta / adjacencyMatrix[u][v]);
+	}
+	return delta;
+}
+
+
+long long Graph::gargKonemannMaxFlow(int s, int t, double epsilon) {
+	initGargKonemann();
+	long long max_flow = 0;
+	while (findShortestPath(s, t)) {
+		max_flow += augmentFlow(s, t, epsilon);
+	}
+	return max_flow;
+}
+
+
 
 
 

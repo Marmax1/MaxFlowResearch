@@ -10,6 +10,7 @@
 #include <iomanip>
 #include <algorithm>
 #include <string>
+#include <stack>
 
 using namespace std;
 
@@ -18,7 +19,11 @@ typedef pair<vector<string>, long long> way;
 class Graph
 {
 private:
-	struct FlowEdge;
+	struct FlowEdge {
+		int to;
+		long long capacity;
+		int rev;
+	};
 	
 	struct Cluster;
 
@@ -29,14 +34,12 @@ private:
 	unordered_set<string> visited;
 
 	vector<vector<long long>> adjacencyMatrix;
+	vector<vector<FlowEdge>> adj;
 	unordered_map<string, int> nodeIndexMap;
 
 	bool IsNodeVisited(string node);
 	vector<string> GetWayByPrev(string from, string to, unordered_map<string, string>& prev);
 	vector<string> MergeVectors(vector<string> first, vector<string> second);
-	long long Remains(FlowEdge edge);
-	long long GetIndexReverseEdge(vector<FlowEdge>& e, long long curIndex);
-	long long DfsForFlow(string& curNode, long long curFlow, string& T, vector<FlowEdge>& e, unordered_map<string, vector<long long>>& indexes);
 	long long DFSWithDelta(string u, string t, long long delta, unordered_map<string, string>& parent);
 
 	static const long long INF = (long long)1e18 + 1;
@@ -52,6 +55,19 @@ private:
 	bool bfs(int s, int t, vector<int>& level);
 	long long dfs(int u, int t, long long flow, vector<int>& ptr, vector<int>& level);
 
+	bool bfsWithEdges(int s, int t, vector<int>& level);
+	long long dfsWithEdges(int u, int t, long long flow, vector<int>& ptr, vector<int>& level);
+
+
+	//для приближённого
+	vector<vector<long long>> residual;  // Остаточные пропускные способности
+	vector<vector<double>> dual_weights; // Двойственные веса рёбер
+	vector<double> distance;            // Расстояния для кратчайших путей
+	vector<int> parent;                 // Для восстановления пути
+
+	// Инициализация остаточной сети и двойственных весов
+	void initGargKonemann();
+
 public:
 	Graph();
 	Graph(string name, bool weighted, bool oriented);
@@ -62,6 +78,7 @@ public:
 	bool IsOriented();
 	int GetCountOfNodes();
 	void BuildAdjacencyMatrix();
+	void BuildAdjEdgesFromMatrix();
 	string GetName();
 	void SetName(string name);
 	long long GetWeight(string nodeFrom, string nodeWhere);
@@ -76,7 +93,6 @@ public:
 
 	/*long long FordFulkersonCheck(string s, string t);*/
 	long long FordFulkersonMatrix(string s, string t);
-	long long FordFulkerson(string s, string t);
 	long long FordFulkersonBFS(string s, string t);
 	long long FordFulkersonScaling(string s, string t, double eps = 0.01);
 	long long FordFulkersonScalingApproximate(string s, string t, double eps = 0.01);
@@ -87,10 +103,15 @@ public:
 
 	// Новый метод для алгоритма Диница
 	long long getMaxFlowDinic(int source, int sink);
-	long long getMaxFlowDinicScaling(int source, int sink);
+	long long getMaxFlowDinicWithEdges(int source, int sink);
 
 	// Новый метод для алгоритма MaxFlow-WO
 	long long MaxFlowWO(const string& source, const string& sink, int max_iterations = 10);
+
+	//Приближённый
+	bool findShortestPath(int s, int t);
+	long long augmentFlow(int s, int t, double epsilon);
+	long long gargKonemannMaxFlow(int s, int t, double epsilon = 0.01);
 
 	long long PushRelabelApproximate(string s, string t, int max_pushes = 100000);
 	long long PushRelabelMatrix(string s, string t, int max_pushes = 1000000);
@@ -98,6 +119,7 @@ public:
 
 	long long DinicMaxFlow(string s, string t);
 	long long DinicMaxFlowMatrix(string s, string t);
+
 
 	void TransformToRandomFlowGraph(string name, unsigned int countNodes, float density, unsigned int maxWeightValues);
 	void TransformToDirected();

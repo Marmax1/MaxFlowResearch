@@ -35,6 +35,7 @@ public:
 	long long GetMaxFlowDinic(string s, string t);
 	
 	long long MaxFlowWO(string s, string t);
+	long long gargKonemannMaxFlow();
 
 	// Finding the shortest paths
 	void WriteSpeedExecutionMaxFlowMethodsFor(unsigned int countNodes, float density, unsigned int maxWeightValue, unsigned int countGraphs = 25);

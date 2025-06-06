@@ -335,7 +335,7 @@ public:
 		cout << "1. Найти максимальный поток из вершины s в t FordFulkerson\n";
 		cout << "2. Найти максимальный поток из вершины s в t PushRelabel\n";
 		cout << "3. Найти максимальный поток из вершины s в t Dinic\n";
-		cout << "4. Найти приблизительный максимальный поток из вершины s в t MaxFlowWO\n";
+		cout << "4. Найти приблизительный максимальный поток из вершины s в t gargKonemann\n";
 		cout << "5. Сравнить скорости всех алгоритмов MaxFlow\n";
 		cout << "8. Переход в неориентированный граф\n";
 		cout << "9. Вернуться ко всем графам\n";
@@ -368,7 +368,7 @@ public:
 			case 4:
 				cout << "\nТекущий граф:\n";
 				myBase.WriteToConsole();
-				cout << "Максимальный поток равен " << myBase.MaxFlowWO("source", "sink") << '\n';
+				cout << "Максимальный поток равен " << myBase.gargKonemannMaxFlow() << '\n';
 				return 3;
 			case 5:
 				cout << "\nТекущий граф:\n";
