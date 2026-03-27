@@ -3,6 +3,7 @@
 #include <chrono>
 #include <numeric>
 #include <functional>
+#include <map>
 
 class DataStorage
 {
@@ -24,7 +25,6 @@ public:
 	void DeleteNode(string node);
 	void DeleteEdge(string nodeFrom, string nodeWhere);
 	void ChangeValueWay(string nodeFrom, string nodeWhere, int value);
-	void TransformGraphToDirected();
 	void WriteToConsole();
 	void WriteToConsoleAll();
 
@@ -34,12 +34,13 @@ public:
 	long long GetMaxFlowPushRelabel();
 	long long GetMaxFlowDinic(string s, string t);
 	
-	long long MaxFlowWO(string s, string t);
 	long long gargKonemannMaxFlow();
 
-	// Finding the shortest paths
-	void WriteSpeedExecutionMaxFlowMethodsFor(unsigned int countNodes, float density, unsigned int maxWeightValue, unsigned int countGraphs = 25);
-	void CompareMaxFlowMetods();
+	//Сравнение методов по скорости
+	void CompareMethods(unsigned int countNodes, float density, unsigned int maxWeightValue, unsigned int countGraphs, const vector<string>& methodNames);
+	void ComparePushRelabelMethods();
+	void CompareDinicMethods();
+	void CompareBestMaxFlowMetods();
 
 	/*
 	Create random graph with the specified parameters

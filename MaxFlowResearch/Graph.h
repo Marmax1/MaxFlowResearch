@@ -24,8 +24,6 @@ private:
 		long long capacity;
 		int rev;
 	};
-	
-	struct Cluster;
 
 	string name;
 	unordered_map<string, unordered_map<string, long long>> nodes;
@@ -43,13 +41,6 @@ private:
 	long long DFSWithDelta(string u, string t, long long delta, unordered_map<string, string>& parent);
 
 	static const long long INF = (long long)1e18 + 1;
-
-
-	// Вспомогательные методы для MaxFlow-WO
-	vector<Cluster> formClusters(const string& source, const string& sink);
-	long long calculateLocalFlow(Cluster& cluster, const string& source, const string& sink);
-	void assignNodesToClusters(vector<Cluster>& clusters, const string& sink);
-	void findConnectingEdges(vector<Cluster>& clusters);
 
 	// Вспомогательные методы для алгоритма Диница
 	bool bfs(int s, int t, vector<int>& level);
@@ -98,31 +89,28 @@ public:
 	long long FordFulkersonScalingApproximate(string s, string t, double eps = 0.01);
 
 	long long getMaxFlowPushRelabel(int source, int sink);
-	long long getMaxFlowPushRelabel_v2(int source, int sink);
-	long long getMaxFlowPushRelabel_v3(int source, int sink);
+	long long getMaxFlowPushRelabel_HLF(int source, int sink);
+	long long getMaxFlowPushRelabel_HLF_GlRel(int source, int sink);
 
 	// Новый метод для алгоритма Диница
 	long long getMaxFlowDinic(int source, int sink);
 	long long getMaxFlowDinicWithEdges(int source, int sink);
 
 	// Новый метод для алгоритма MaxFlow-WO
-	long long MaxFlowWO(const string& source, const string& sink, int max_iterations = 10);
+	//long long MaxFlowWO(const string& source, const string& sink, int max_iterations = 10);
 
 	//Приближённый
 	bool findShortestPath(int s, int t);
 	long long augmentFlow(int s, int t, double epsilon);
 	long long gargKonemannMaxFlow(int s, int t, double epsilon = 0.01);
 
-	long long PushRelabelApproximate(string s, string t, int max_pushes = 100000);
 	long long PushRelabelMatrix(string s, string t, int max_pushes = 1000000);
-	long long PushRelabelParallel(string s, string t, int max_pushes = 1000000);
 
 	long long DinicMaxFlow(string s, string t);
 	long long DinicMaxFlowMatrix(string s, string t);
 
 
 	void TransformToRandomFlowGraph(string name, unsigned int countNodes, float density, unsigned int maxWeightValues);
-	void TransformToDirected();
 
 	friend std::ostream& operator<< (std::ostream& out, const Graph& graph);
 	~Graph();

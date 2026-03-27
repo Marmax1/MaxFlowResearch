@@ -21,13 +21,6 @@ public:
 	}
 };
 
-struct Graph::Cluster {
-	string center; // Центр кластера
-	unordered_set<string> nodes; // Узлы в кластере
-	vector<pair<string, string>> edges; // Ребра кластера
-	long long local_flow; // Локальный максимальный поток
-};
-
 
 bool Graph::IsNodeVisited(string node) {
 	if (visited.find(node) == visited.end())
@@ -180,7 +173,7 @@ void Graph::BuildAdjEdgesFromMatrix() {
 }
 
 /*
-распределяем доступное нам количество дуг по ним, но с учётом того, что компоненты должны быть связные
+Распределяем доступное нам количество дуг по ним, но с учётом того, что компоненты должны быть связные
 	a. Cтроим случайное остовное дерево от 1 вершины до последней (для связности)
 	b. Остальные дуги, которые надо распределить, кладём в массив в виде true, перемешиваем с false-ами (общее кол-во true = макс. возможное кол-во дуг
 		 - (минус) кол-во дуг в остовном дереве). Теперь,идя по всем дугам по очереди в матрице смежности и одновременно по массиву, я могу расставить
@@ -255,7 +248,7 @@ void Graph::TransformToRandomFlowGraph(string name, unsigned int countNodes, flo
 	for (unsigned int i = 0, added = 0; added < edges_to_add && i < possible_edges.size(); i++) {
 		const auto& edge = possible_edges[i];
 		if (!IsEdgeExist(to_string(edge.first), to_string(edge.second))) {
-			AddEdge(to_string(edge.first), to_string(edge.second), weight_dist(gen));
+			AddEdge(to_string(edge.first), to_string(edge.second), weight_dist(gen));		///////////// поменять !!!!!!!!!!!!!!!!!
 			added++;
 		}
 	}
@@ -689,247 +682,6 @@ long long Graph::FordFulkersonScalingApproximate(string s, string t, double eps)
 }
 
 
-long long Graph::PushRelabelApproximate(string s, string t, int max_pushes) {
-
-	// 1. Инициализация
-	unordered_map<string, long long> height, excess;
-	unordered_map<string, unordered_map<string, long long>> residual;
-
-	// Копируем пропускные способности в остаточную сеть
-	for (const auto& u : nodes) {
-		height[u.first] = 0;
-		excess[u.first] = 0;
-		for (const auto& edge : u.second) {
-			residual[u.first][edge.first] = edge.second;
-		}
-	}
-
-	// Высота истока = |V|, избыток = INF
-	height[s] = nodes.size();
-	excess[s] = INF;
-
-	// 2. Начальное проталкивание из истока
-	for (auto& edge : nodes[s]) {
-		string v = edge.first;
-		long long flow = residual[s][v]; // Можно протолкнуть весь доступный поток
-		if (flow > 0) {
-			residual[s][v] -= flow;
-			residual[v][s] += flow; // Добавляем обратное ребро
-			excess[s] -= flow;
-			excess[v] += flow;
-		}
-	}
-
-	// 3. Основной цикл
-	int pushes = 0;
-	bool updated;
-	do {
-		updated = false;
-		for (const auto& u_node : nodes) {
-			string u = u_node.first;
-			if (u == s || u == t || excess[u] == 0) continue;
-
-			// 3.1. Пытаемся протолкнуть поток
-			for (auto& edge : residual[u]) {
-				string v = edge.first;
-				if (height[u] > height[v] && edge.second > 0) {
-					long long flow = min(excess[u], edge.second);
-					residual[u][v] -= flow;
-					residual[v][u] += flow;
-					excess[u] -= flow;
-					excess[v] += flow;
-					updated = true;
-					pushes++;
-
-					if (excess[u] == 0) break; // Избыток исчерпан
-				}
-			}
-
-			// 3.2. Если избыток остался — поднимаем вершину
-			if (excess[u] > 0) {
-				long long min_height = INF;
-				for (const auto& edge : residual[u]) {
-					if (edge.second > 0) {
-						min_height = min(min_height, height[edge.first]);
-					}
-				}
-				if (min_height != INF) {
-					height[u] = min_height + 1;
-					updated = true;
-				}
-			}
-		}
-	} while (updated && pushes < max_pushes);
-
-	// 4. Возвращаем поток, вошедший в сток
-	return excess[t];
-}
-
-long long Graph::PushRelabelMatrix(string s, string t, int max_pushes) {
-	// 1. Построение индексов
-	size_t n = adjacencyMatrix.size();
-	size_t source = 0;
-	size_t sink = n - 1;
-
-	// 2. Инициализация
-	vector<long long> height(n, 0), excess(n, 0);
-	vector<vector<long long>> residual = adjacencyMatrix;  // Остаточная сеть
-
-	height[source] = n;
-	excess[source] = INF;
-
-	// 3. Начальное проталкивание из истока
-	for (size_t v = 0; v < n; ++v) {
-		if (residual[source][v] > 0) {
-			long long flow = residual[source][v];
-			residual[source][v] -= flow;
-			residual[v][source] += flow;
-			excess[source] -= flow;
-			excess[v] += flow;
-		}
-	}
-
-	// 4. Основной цикл
-	int pushes = 0;
-	bool updated;
-	do {
-		updated = false;
-		for (size_t u = 0; u < n; ++u) {
-			if (u == source || u == sink || excess[u] == 0) continue;
-
-			// 4.1. Проталкивание потока
-			for (size_t v = 0; v < n; ++v) {
-				if (height[u] > height[v] && residual[u][v] > 0) {
-					long long flow = min(excess[u], residual[u][v]);
-					residual[u][v] -= flow;
-					residual[v][u] += flow;
-					excess[u] -= flow;
-					excess[v] += flow;
-					updated = true;
-					pushes++;
-
-					if (excess[u] == 0) break;
-				}
-			}
-
-			// 4.2. Подъём вершины
-			if (excess[u] > 0) {
-				long long min_height = INF;
-				for (size_t v = 0; v < n; ++v) {
-					if (residual[u][v] > 0) {
-						min_height = min(min_height, height[v]);
-					}
-				}
-				if (min_height != INF) {
-					height[u] = min_height + 1;
-					updated = true;
-				}
-			}
-		}
-	} while (updated && pushes < max_pushes);
-
-	return excess[sink];
-}
-
-long long Graph::PushRelabelParallel(string s, string t, int max_pushes) {
-	if (!IsNodeExist(s) || !IsNodeExist(t)) {
-		throw invalid_argument("Source or sink node doesn't exist");
-	}
-
-	// 1. Инициализация
-	unordered_map<string, std::atomic<long long>> height, excess;
-	unordered_map<string, unordered_map<string, std::atomic<long long>>> residual;
-
-	// Копируем пропускные способности в остаточную сеть
-	for (const auto& u : nodes) {
-		height[u.first].store(0);
-		excess[u.first].store(0);
-		for (const auto& edge : u.second) {
-			residual[u.first][edge.first].store(edge.second);
-		}
-	}
-
-	// Высота истока = |V|, избыток = INF
-	height[s].store(nodes.size());
-	excess[s].store(INF);
-
-	// 2. Начальное проталкивание из истока (последовательно)
-	for (auto& edge : nodes[s]) {
-		string v = edge.first;
-		long long flow = residual[s][v].load();
-		if (flow > 0) {
-			residual[s][v] -= flow;
-			residual[v][s] += flow;
-			excess[s] -= flow;
-			excess[v] += flow;
-		}
-	}
-
-	// 3. Основной цикл (параллельный)
-	int pushes = 0;
-	bool updated;
-	do {
-		updated = false;
-		vector<string> active_nodes;
-
-		// Собираем активные вершины
-		for (const auto& u_node : nodes) {
-			string u = u_node.first;
-			if (u != s && u != t && excess[u].load() > 0) {
-				active_nodes.push_back(u);
-			}
-		}
-
-		// Параллельная обработка активных вершин
-#pragma omp parallel for shared(updated)
-		for (size_t i = 0; i < active_nodes.size(); ++i) {
-			string u = active_nodes[i];
-			long long curr_excess = excess[u].load();
-			if (curr_excess <= 0) continue;
-
-			// 3.1. Пытаемся протолкнуть поток
-			for (auto& edge : nodes[u]) {
-				string v = edge.first;
-				long long cap = residual[u][v].load();
-				if (height[u].load() > height[v].load() && cap > 0) {
-					long long flow = min(curr_excess, cap);
-
-					// Атомарное обновление
-					residual[u][v] -= flow;
-					residual[v][u] += flow;
-					excess[u] -= flow;
-					excess[v] += flow;
-
-#pragma omp atomic write
-					updated = true;
-					pushes++;
-
-					curr_excess = excess[u].load();
-					if (curr_excess == 0) break;
-				}
-			}
-
-			// 3.2. Подъём вершины, если избыток остался
-			if (curr_excess > 0) {
-				long long min_height = INF;
-				for (auto& edge : nodes[u]) {
-					string v = edge.first;
-					if (residual[u][v].load() > 0) {
-						min_height = min(min_height, height[v].load());
-					}
-				}
-				if (min_height != INF) {
-					height[u].store(min_height + 1);
-#pragma omp atomic write
-					updated = true;
-				}
-			}
-		}
-	} while (updated && pushes < max_pushes);
-
-	return excess[t].load();
-}
-
 
 long long Graph::DinicMaxFlow(string s, string t) {
 
@@ -1084,6 +836,77 @@ long long Graph::DinicMaxFlowMatrix(string s, string t) {
 	return max_flow;
 }
 
+
+
+
+
+//Push-Relabel
+long long Graph::PushRelabelMatrix(string s, string t, int max_pushes) {
+	// 1. Построение индексов
+	size_t n = adjacencyMatrix.size();
+	size_t source = 0;
+	size_t sink = n - 1;
+
+	// 2. Инициализация
+	vector<long long> height(n, 0), excess(n, 0);
+	vector<vector<long long>> residual = adjacencyMatrix;  // Остаточная сеть
+
+	height[source] = n;
+	excess[source] = INF;
+
+	// 3. Начальное проталкивание из истока
+	for (size_t v = 0; v < n; ++v) {
+		if (residual[source][v] > 0) {
+			long long flow = residual[source][v];
+			residual[source][v] -= flow;
+			residual[v][source] += flow;
+			excess[source] -= flow;
+			excess[v] += flow;
+		}
+	}
+
+	// 4. Основной цикл
+	int pushes = 0;
+	bool updated;
+	do {
+		updated = false;
+		for (size_t u = 0; u < n; ++u) {
+			if (u == source || u == sink || excess[u] == 0) continue;
+
+			// 4.1. Проталкивание потока
+			for (size_t v = 0; v < n; ++v) {
+				if (height[u] > height[v] && residual[u][v] > 0) {
+					long long flow = min(excess[u], residual[u][v]);
+					residual[u][v] -= flow;
+					residual[v][u] += flow;
+					excess[u] -= flow;
+					excess[v] += flow;
+					updated = true;
+					pushes++;
+
+					if (excess[u] == 0) break;
+				}
+			}
+
+			// 4.2. Подъём вершины
+			if (excess[u] > 0) {
+				long long min_height = INF;
+				for (size_t v = 0; v < n; ++v) {
+					if (residual[u][v] > 0) {
+						min_height = min(min_height, height[v]);
+					}
+				}
+				if (min_height != INF) {
+					height[u] = min_height + 1;
+					updated = true;
+				}
+			}
+		}
+	} while (updated && pushes < max_pushes);
+
+	return excess[sink];
+}
+
 // Метод для вычисления максимального потока алгоритмом Push-Relabel
 long long Graph::getMaxFlowPushRelabel(int source, int sink) {
 
@@ -1104,35 +927,27 @@ long long Graph::getMaxFlowPushRelabel(int source, int sink) {
 			excess[source] -= flow[source][v];
 		}
 	}
-
 	// Основной цикл алгоритма
 	while (true) {
 		bool foundActive = false;
-
 		// Ищем активную вершину
 		for (int u = 0; u < n; u++) {
 			if (!(excess[u] > 0 && u != source && u != sink)) continue;
-
 			foundActive = true;
 			bool pushed = false;
-
 			// Пытаемся протолкнуть поток в допустимое ребро
 			for (int v = 0; v < n; v++) {
 				if (adjacencyMatrix[u][v] - flow[u][v] > 0 && height[u] == height[v] + 1) {
-
 					//операция push
 					long long delta = min(excess[u], adjacencyMatrix[u][v] - flow[u][v]);
 					flow[u][v] += delta;
 					flow[v][u] -= delta; // Учитываем обратное ребро
 					excess[u] -= delta;
 					excess[v] += delta;
-
-
 					pushed = true;
 					break;
 				}
 			}
-
 			// Если не удалось протолкнуть - поднимаем вершину (relabel)
 			if (!pushed) {
 				long long min_height = LLONG_MAX;
@@ -1147,17 +962,15 @@ long long Graph::getMaxFlowPushRelabel(int source, int sink) {
 				}
 			}
 		}
-
 		// Если не осталось активных вершин - завершаем
 		if (!foundActive) break;
 	}
-
 	// Возвращаем значение максимального потока
 	return excess[sink];
 }
 
 // Метод для вычисления максимального потока алгоритмом Push-Relabel c Highest Label First (HLF)
-long long Graph::getMaxFlowPushRelabel_v2(int source, int sink) {
+long long Graph::getMaxFlowPushRelabel_HLF(int source, int sink) {
 	int n = adjacencyMatrix.size();
 	vector<vector<long long>> flow(n, vector<long long>(n, 0));
 	vector<long long> height(n, 0);
@@ -1255,7 +1068,7 @@ void globalRelabel(const vector<vector<long long>>& capacity,
 }
 
 // Метод для вычисления максимального потока алгоритмом Push-Relabel c Highest Label First (HLF) и globalRelabel
-long long Graph::getMaxFlowPushRelabel_v3(int source, int sink) {
+long long Graph::getMaxFlowPushRelabel_HLF_GlRel(int source, int sink) {
 	int n = adjacencyMatrix.size();
 	vector<vector<long long>> flow(n, vector<long long>(n, 0));
 	vector<long long> height(n, 0);
@@ -1354,161 +1167,8 @@ long long Graph::getMaxFlowPushRelabel_v3(int source, int sink) {
 // Приближённый алгоритм
 // Реализация методов MaxFlow-WO
 
-// Реализация исправленных методов
-
-vector<Graph::Cluster> Graph::formClusters(const string& source, const string& sink) {
-	vector<Cluster> clusters;
-	vector<string> nodes_list;
-
-	// Собираем все узлы кроме стока
-	for (const auto& node : nodes) {
-		if (node.first != sink) {
-			nodes_list.push_back(node.first);
-		}
-	}
-
-	// Количество кластеров - корень из числа узлов (минимум 2)
-	int k = max(2, (int)sqrt(nodes_list.size()));
-	k = min(k, (int)nodes_list.size());
-
-	// Гарантируем, что источник будет центром одного из кластеров
-	Cluster source_cluster;
-	source_cluster.center = source;
-	source_cluster.nodes.insert(source);
-	clusters.push_back(source_cluster);
-
-	// Выбираем случайные центры для остальных кластеров
-	random_shuffle(nodes_list.begin(), nodes_list.end());
-	for (int i = 0; i < k - 1 && i < nodes_list.size(); ++i) {
-		if (nodes_list[i] == source) continue;
-
-		Cluster cluster;
-		cluster.center = nodes_list[i];
-		cluster.nodes.insert(nodes_list[i]);
-		clusters.push_back(cluster);
-	}
-
-	return clusters;
-}
-
-void Graph::assignNodesToClusters(vector<Cluster>& clusters, const string& sink) {
-	// Распределяем узлы по ближайшим кластерам
-	for (const auto& node : nodes) {
-		if (node.first == sink) continue;
-
-		// Проверяем, не является ли узел уже центром кластера
-		bool is_center = false;
-		for (const auto& cluster : clusters) {
-			if (node.first == cluster.center) {
-				is_center = true;
-				break;
-			}
-		}
-		if (is_center) continue;
-
-		// Находим ближайший кластер
-		int nearest_cluster = 0;
-		long long min_distance = numeric_limits<long long>::max();
-
-		for (int i = 0; i < clusters.size(); ++i) {
-			if (nodes.at(node.first).count(clusters[i].center)) {
-				long long dist = nodes.at(node.first).at(clusters[i].center);
-				if (dist < min_distance) {
-					min_distance = dist;
-					nearest_cluster = i;
-				}
-			}
-		}
-
-		if (min_distance != numeric_limits<long long>::max()) {
-			clusters[nearest_cluster].nodes.insert(node.first);
-		}
-	}
-
-	// Гарантируем, что сток есть в каждом кластере
-	for (auto& cluster : clusters) {
-		cluster.nodes.insert(sink);
-	}
-}
-
-void Graph::findConnectingEdges(vector<Cluster>& clusters) {
-	// Находим все ребра между узлами каждого кластера
-	for (auto& cluster : clusters) {
-		for (const auto& node : cluster.nodes) {
-			for (const auto& edge : nodes.at(node)) {
-				if (cluster.nodes.count(edge.first)) {
-					cluster.edges.emplace_back(node, edge.first);
-				}
-			}
-		}
-	}
-}
-
-long long Graph::calculateLocalFlow(Cluster& cluster, const string& source, const string& sink) {
-	// Проверяем, есть ли источник и сток в кластере
-	if (!cluster.nodes.count(source) || !cluster.nodes.count(sink)) {
-		return 0;
-	}
-
-	// Создаем временный подграф для этого кластера
-	Graph temp_graph("temp", true, true);
-
-	// Добавляем узлы
-	for (const auto& node : cluster.nodes) {
-		temp_graph.AddNode(node);
-	}
-
-	// Добавляем ребра с их пропускными способностями
-	for (const auto& edge : cluster.edges) {
-		long long capacity = nodes.at(edge.first).at(edge.second);
-		temp_graph.AddEdge(edge.first, edge.second, capacity);
-	}
-
-	// Вычисляем максимальный поток в подграфе
-	return temp_graph.DinicMaxFlow(source, sink);
-}
-
-long long Graph::MaxFlowWO(const string& source, const string& sink, int max_iterations) {
-	if (!IsNodeExist(source) || !IsNodeExist(sink)) {
-		return 0;
-	}
-
-	long long max_flow = 0;
-
-	for (int iter = 0; iter < max_iterations; ++iter) {
-		// 1. Формируем кластеры
-		vector<Cluster> clusters = formClusters(source, sink);
-
-		// 2. Распределяем узлы по кластерам
-		assignNodesToClusters(clusters, sink);
-
-		// 3. Находим ребра внутри каждого кластера
-		findConnectingEdges(clusters);
-
-		// 4. Вычисляем локальные потоки и находим максимальный
-		long long current_max = 0;
-		for (auto& cluster : clusters) {
-			cluster.local_flow = calculateLocalFlow(cluster, source, sink);
-			if (cluster.local_flow > current_max) {
-				current_max = cluster.local_flow;
-			}
-		}
-
-		if (current_max > max_flow) {
-			max_flow = current_max;
-		}
-	}
-
-	return max_flow;
-}
-
-
-
-
-
-
-
 // Алгоритм Диница
+
 // Вспомогательный метод BFS для построения слоистой сети
 bool Graph::bfs(int s, int t, vector<int>& level) {
 	fill(level.begin(), level.end(), -1);

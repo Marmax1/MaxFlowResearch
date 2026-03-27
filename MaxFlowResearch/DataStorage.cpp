@@ -145,10 +145,6 @@ void DataStorage::ChangeValueWay(string nodeFrom, string nodeWhere, int value) {
 	iter->AddEdge(nodeFrom, nodeWhere, value);
 }
 
-void DataStorage::TransformGraphToDirected() {
-	iter->TransformToDirected();
-}
-
 void DataStorage::WriteToConsole() {
 	cout << *iter;
 }
@@ -192,8 +188,8 @@ long long DataStorage::GetMaxFlowPushRelabel() {
 		throw string("Какой-то из вершин не существует");
 
 	cout << iter->getMaxFlowPushRelabel(0, iter->GetCountOfNodes() - 1) << '\n';
-	cout << iter->getMaxFlowPushRelabel_v2(0, iter->GetCountOfNodes() - 1) << '\n';
-	return iter->getMaxFlowPushRelabel_v3(0, iter->GetCountOfNodes() - 1);
+	cout << iter->getMaxFlowPushRelabel_HLF(0, iter->GetCountOfNodes() - 1) << '\n';
+	return iter->getMaxFlowPushRelabel_HLF_GlRel(0, iter->GetCountOfNodes() - 1);
 }
 
 long long DataStorage::GetMaxFlowDinic(string s, string t) {
@@ -224,16 +220,6 @@ long long DataStorage::GetMaxFlowDinic(string s, string t) {
 	return maxFlow;
 }
 
-long long DataStorage::MaxFlowWO(string s, string t) {
-	if (!iter->IsOriented() || !iter->IsWeighted())
-		throw string("Граф должен быть ориентированным и взвешенным");
-
-	if (!(iter->IsNodeExist(s) && iter->IsNodeExist(t)))
-		throw string("Какой-то из вершин не существует");
-
-	return iter->MaxFlowWO(s, t);
-}
-
 long long DataStorage::gargKonemannMaxFlow() {
 	if (!iter->IsOriented() || !iter->IsWeighted())
 		throw string("Граф должен быть ориентированным и взвешенным");
@@ -244,114 +230,101 @@ long long DataStorage::gargKonemannMaxFlow() {
 	return iter->gargKonemannMaxFlow(0, iter->GetCountOfNodes() - 1);
 }
 
-void DataStorage::WriteSpeedExecutionMaxFlowMethodsFor(unsigned int countNodes, float density, unsigned int maxWeightValue, unsigned int countGraphs) {
-	string s = "source";
-	string t = "sink";
+void DataStorage::CompareMethods(unsigned int countNodes, float density, unsigned int maxWeightValue, unsigned int countGraphs, const vector<string>& methodNames) {
+	// Таблица для хранения методов и их времени выполнения
+	map<string, function<long long(int, int, long long&)>> methods = {
+		// PushRelabel методы
+		{"PushRelabelMatrix", [this](int s, int t, long long& time) {
+			auto start = chrono::steady_clock::now();
+			long long maxFlow = iter->getMaxFlowPushRelabel(s, t);
+			auto end = chrono::steady_clock::now();
+			time = chrono::duration_cast<chrono::microseconds>(end - start).count();
+			return maxFlow;
+		}},
+		{"PushRelabelMatrix_HLF", [this](int s, int t, long long& time) {
+			auto start = chrono::steady_clock::now();
+			long long maxFlow = iter->getMaxFlowPushRelabel_HLF(s, t);
+			auto end = chrono::steady_clock::now();
+			time = chrono::duration_cast<chrono::microseconds>(end - start).count();
+			return maxFlow;
+		}},
+		{"PushRelabelMatrix_v3", [this](int s, int t, long long& time) {
+			auto start = chrono::steady_clock::now();
+			long long maxFlow = iter->getMaxFlowPushRelabel_HLF_GlRel(s, t);
+			auto end = chrono::steady_clock::now();
+			time = chrono::duration_cast<chrono::microseconds>(end - start).count();
+			return maxFlow;
+		}},
+		{"PushRelabelMatrixMaxPushes", [this](int s, int t, long long& time) {
+			auto start = chrono::steady_clock::now();
+			long long maxFlow = iter->PushRelabelMatrix(to_string(s), to_string(t));
+			auto end = chrono::steady_clock::now();
+			time = chrono::duration_cast<chrono::microseconds>(end - start).count();
+			return maxFlow;
+		}},
 
-	long long maxFlow;
-	auto start = chrono::steady_clock::now();
-	auto end = chrono::steady_clock::now();
+		// Dinic методы
+		{"DinicMaxFlow_unordered_map", [this](int s, int t, long long& time) {
+			CreateCopyGraph(iter->GetName() + "Copy");
+			auto start = chrono::steady_clock::now();
+			long long maxFlow = iter->DinicMaxFlowMatrix("source", "sink");
+			auto end = chrono::steady_clock::now();
+			time = chrono::duration_cast<chrono::microseconds>(end - start).count();
+			DeleteGraph();
+			iter = --graphs.end();
+			return maxFlow;
+		}},
+		{"DinicMaxFlowMatrix", [this](int s, int t, long long& time) {
+			CreateCopyGraph(iter->GetName() + "Copy");
+			auto start = chrono::steady_clock::now();
+			long long maxFlow = iter->getMaxFlowDinic(s, t);
+			auto end = chrono::steady_clock::now();
+			time = chrono::duration_cast<chrono::microseconds>(end - start).count();
+			DeleteGraph();
+			iter = --graphs.end();
+			return maxFlow;
+		}},
+		{"DinicMaxFlowWithEdges", [this](int s, int t, long long& time) {
+			CreateCopyGraph(iter->GetName() + "Copy");
+			auto start = chrono::steady_clock::now();
+			long long maxFlow = iter->getMaxFlowDinicWithEdges(s, t);
+			auto end = chrono::steady_clock::now();
+			time = chrono::duration_cast<chrono::microseconds>(end - start).count();
+			DeleteGraph();
+			iter = --graphs.end();
+			return maxFlow;
+		}},
+	};
+
+	// Вектор для хранения общего времени
+	vector<long long> totalTime(methodNames.size(), 0);
+	vector<vector<long long>> maxFlows(countGraphs, vector<long long>(methodNames.size(), 0)); // Для проверки корректности
 
 	int n = 0;
-
-	vector<long long> totalTime (9);
-
-	vector<string> methodNames = {
-		"FordFulkerson (матрица)",
-		"PushRelabelMatrix",
-		"PushRelabelMatrix_v2",
-		"PushRelabelMatrix_v3",
-		"PushRelabelParallel",
-		//"ApproximatorMaxFlowSherman",
-		"DinicMaxFlow unordered_map",
-		"DinicMaxFlowMatrix",
-		"DinicMaxFlowWithEdges",
-		"gargKonemannMaxFlow"
-	};
-	
-	while (n++ < countGraphs) {
+	while (n < countGraphs) {
 		CreateRandomFlowGraph(countNodes, density, maxWeightValue);
-
 		int currentCountNodes = iter->GetCountOfNodes();
+		int s = 0;
+		int t = currentCountNodes - 1;
 
-		// алгоритмы FordFulkerson
+		// Проверяем каждый метод
+		for (size_t i = 0; i < methodNames.size(); ++i) {
+			const auto& name = methodNames[i];
+			if (methods.find(name) == methods.end()) {
+				cout << "Unknown method: " << name << endl;
+				continue;
+			}
 
-		start = chrono::steady_clock::now();
-		maxFlow = iter->FordFulkersonMatrix(s, t);
-		end = chrono::steady_clock::now();
-		totalTime[0] += chrono::duration_cast<chrono::microseconds>(end - start).count();
-
-		// алгоритмы PushRelabel
-		start = chrono::steady_clock::now();
-		maxFlow = iter->getMaxFlowPushRelabel(0, currentCountNodes - 1);
-		end = chrono::steady_clock::now();
-		totalTime[1] += chrono::duration_cast<chrono::microseconds>(end - start).count();
-
-		start = chrono::steady_clock::now();
-		maxFlow = iter->getMaxFlowPushRelabel_v2(0, currentCountNodes - 1);
-		end = chrono::steady_clock::now();
-		totalTime[2] += chrono::duration_cast<chrono::microseconds>(end - start).count();
-
-		start = chrono::steady_clock::now();
-		maxFlow = iter->getMaxFlowPushRelabel_v3(0, currentCountNodes - 1);
-		end = chrono::steady_clock::now();
-		totalTime[3] += chrono::duration_cast<chrono::microseconds>(end - start).count();
-
-		start = chrono::steady_clock::now();
-		maxFlow = iter->PushRelabelParallel(s, t);
-		end = chrono::steady_clock::now();
-		totalTime[4] += chrono::duration_cast<chrono::microseconds>(end - start).count();
-
-
-		//// ApproximatorMaxFlowSherman
-		//start = chrono::steady_clock::now();
-		////maxFlow = iter->approximatorMaxflow(0, currentCountNodes - 1);
-		//end = chrono::steady_clock::now();
-		//totalTime[6] += chrono::duration_cast<chrono::microseconds>(end - start).count();
-
-		// алгоритмы Dinic
-		/*start = chrono::steady_clock::now();
-		maxFlow = iter->DinicMaxFlow(s, t);
-		end = chrono::steady_clock::now();
-		totalTime[6] += chrono::duration_cast<chrono::microseconds>(end - start).count();*/
-
-
-		CreateCopyGraph(iter->GetName() + "Copy");
-		start = chrono::steady_clock::now();
-		maxFlow = iter->DinicMaxFlowMatrix(s, t);
-		end = chrono::steady_clock::now();
-		totalTime[5] += chrono::duration_cast<chrono::microseconds>(end - start).count();
-		DeleteGraph();
-		iter = --graphs.end();
-
-		CreateCopyGraph(iter->GetName() + "Copy");
-		start = chrono::steady_clock::now();
-		maxFlow = iter->getMaxFlowDinic(0, currentCountNodes - 1);
-		end = chrono::steady_clock::now();
-		totalTime[6] += chrono::duration_cast<chrono::microseconds>(end - start).count();
-		DeleteGraph();
-		iter = --graphs.end();
-
-		CreateCopyGraph(iter->GetName() + "Copy");
-		start = chrono::steady_clock::now();
-		maxFlow = iter->getMaxFlowDinicWithEdges(0, currentCountNodes - 1);
-		end = chrono::steady_clock::now();
-		totalTime[7] += chrono::duration_cast<chrono::microseconds>(end - start).count();
-		DeleteGraph();
-		iter = --graphs.end();
-
-		CreateCopyGraph(iter->GetName() + "Copy");
-		start = chrono::steady_clock::now();
-		maxFlow = iter->gargKonemannMaxFlow(0, currentCountNodes - 1);
-		end = chrono::steady_clock::now();
-		totalTime[8] += chrono::duration_cast<chrono::microseconds>(end - start).count();
-		DeleteGraph();
-		iter = --graphs.end();
+			long long time = 0;
+			long long maxFlow = methods[name](s, t, time);
+			totalTime[i] += time;
+			maxFlows[n][i] = maxFlow; // Сохраняем последний maxFlow (можно добавить проверку)
+		}
 
 		system("cls");
 
 		cout << "--------------------------------------------------------------------------------------\n";
-		cout << "Сравнение методов для графов с " << countNodes << " вершинами и плотностью " << density << '\n\n';
+		cout << "Сравнение методов для графов с " << countNodes << " вершинами и плотностью " << density << '\n';
 		cout << "Количество тестовых графов: " << n << "\n\n";
 		cout << "Среднее время выполнения (микросекунды):\n";
 
@@ -362,154 +335,43 @@ void DataStorage::WriteSpeedExecutionMaxFlowMethodsFor(unsigned int countNodes, 
 			}
 		}
 		cout << "--------------------------------------------------------------------------------------\n";
+
+		n++;
+	}
+
+	cout << "\nСравнение результатов методов:\n";
+	cout << "Метод\t";
+	for (size_t i = 0; i < methodNames.size(); i++) {
+		cout << methodNames[i] << '\t';
+	}
+	cout << '\n';
+
+	for (size_t i = 0; i < countGraphs; i++) {
+		cout << "Граф " << i << ":\t";
+		for (size_t j = 0; j < methodNames.size(); j++) {
+			cout << maxFlows[i][j] << '\t';
+		}
+		cout << '\n';
 	}
 }
 
-void DataStorage::CompareMaxFlowMetods() {
-	WriteSpeedExecutionMaxFlowMethodsFor(200, 0.5, 10000, 20);
-	//WriteSpeedExecutionMaxFlowMethodsFor(300, 0.3, 100);
-	//WriteSpeedExecutionMaxFlowMethodsFor(300, 0.8, 100);
+void DataStorage::ComparePushRelabelMethods() {
+	CompareMethods(200, 0.3, 10000, 25, { "PushRelabelMatrix",
+		"PushRelabelMatrix_HLF",
+		"PushRelabelMatrix_v3",
+		"PushRelabelMatrixMaxPushes"
+		});
 }
 
+void DataStorage::CompareDinicMethods() {
+	CompareMethods(200, 0.5, 10000, 25, { "DinicMaxFlow_unordered_map",
+		"DinicMaxFlowMatrix",
+		"DinicMaxFlowWithEdges"});
+}
 
-//// Finding the shortest paths
-//
-//void DataStorage::WriteShortestPathByBFSFor01Graph(string from, string to) {
-//	if (!(iter->IsNodeExist(from) && iter->IsNodeExist(to)))
-//		throw string("Какой-то из вершин не существует");
-//
-//	auto start = chrono::steady_clock::now();
-//	auto shortestWay = iter->GetShortestPathByBFSDeque(from, to);
-//	auto end = chrono::steady_clock::now();
-//	cout << "Elapsed time in microseconds: "
-//		<< chrono::duration_cast<chrono::microseconds>(end - start).count()
-//		<< " µs" << endl;
-//
-//	if (shortestWay.first.empty()) {
-//		cout << "Пути из " << from << " в " << to << " не существует\n";
-//		return;
-//	}
-//
-//	cout << "Кратчайший путь из " << from << " в " << to << ":\n";
-//
-//	for (int i = 0; i < shortestWay.first.size() - 1; i++) {
-//		cout << shortestWay.first[i] << " -> ";
-//	}
-//	cout << shortestWay.first.back() << '\t' << "Длина: " << shortestWay.second << '\n';
-//}
-//
-//void DataStorage::WriteShortestPathByBFSFor12Graph(string from, string to) {
-//	if (!(iter->IsNodeExist(from) && iter->IsNodeExist(to)))
-//		throw string("Какой-то из вершин не существует");
-//
-//	Graph withoutWeight2 = iter->SplitEdgesWithWeightN(2);
-//
-//	auto start = chrono::steady_clock::now();
-//	auto shortestWay = withoutWeight2.GetShortestPathByBFS(from, to);
-//	auto end = chrono::steady_clock::now();
-//	cout << "Elapsed time in microseconds: "
-//		<< chrono::duration_cast<chrono::microseconds>(end - start).count()
-//		<< " µs" << endl;
-//
-//	if (shortestWay.first.empty()) {
-//		cout << "Пути из " << from << " в " << to << " не существует\n";
-//		return;
-//	}
-//
-//	cout << "Кратчайший путь из " << from << " в " << to << ":\n";
-//
-//	for (int i = 0; i < shortestWay.first.size() - 1; i++) {
-//		if (!iter->IsNodeExist(shortestWay.first[i]))
-//			continue;
-//		cout << shortestWay.first[i] << " -> ";
-//	}
-//	cout << shortestWay.first.back() << '\t' << "Длина: " << shortestWay.second << '\n';
-//}
-//
-//void DataStorage::WriteSpeedExecutionOfDFSAndDijkstraMethods() {
-//	string name = "RandomGraph";
-//	int secondPartName = 1;
-//	while (IsGraphExist(name + to_string(secondPartName))) {
-//		secondPartName++;
-//	}
-//	name = name + to_string(secondPartName);
-//	bool weighted = true;
-//	bool oriented = false;
-//	vector<long long> weightValues = { 0, 1 };
-//
-//	// Compare method for different graphs
-//
-//	cout << "\nFor small (4-24 nodes) sparse undirected 0-1 graph:\n";
-//	CompareMethodsFindingShortestPath([]() -> int {return rand() % 21 + 4; }, [](int countNodes) -> int {return rand() % (countNodes * (countNodes - 1) / 4); },
-//		name, weighted, oriented, weightValues);
-//
-//	cout << "\nFor small (4-24 nodes) dense undirected 0-1 graph:\n";
-//	CompareMethodsFindingShortestPath([]() -> int {return rand() % 21 + 4; }, [](int countNodes) -> int {int countEdges = (countNodes * (countNodes - 1) / 2); return rand() % (countEdges / 2) + (countEdges - countEdges / 2) + 1; },
-//		name, weighted, oriented, weightValues);
-//
-//	cout << "\nFor large (40-80 nodes) sparse undirected 0-1 graph:\n";
-//	CompareMethodsFindingShortestPath([]() -> int {return rand() % 41 + 40; }, [](int countNodes) -> int {return rand() % (countNodes * (countNodes - 1) / 4); },
-//		name, weighted, oriented, weightValues);
-//
-//	cout << "\nFor large (40-80 nodes) dense undirected 0-1 graph:\n";
-//	CompareMethodsFindingShortestPath([]() -> int {return rand() % 41 + 40; }, [](int countNodes) -> int {int countEdges = (countNodes * (countNodes - 1) / 2); return rand() % (countEdges / 2) + (countEdges - countEdges / 2) + 1; },
-//		name, weighted, oriented, weightValues);
-//
-//	oriented = true;
-//
-//	cout << "\nFor small (4-24 nodes) sparse directed 0-1 graph:\n";
-//	CompareMethodsFindingShortestPath([]() -> int {return rand() % 21 + 4; }, [](int countNodes) -> int {return rand() % (countNodes * countNodes / 2); },
-//		name, weighted, oriented, weightValues);
-//
-//	cout << "\nFor small (4-24 nodes) dense directed 0-1 graph:\n";
-//	CompareMethodsFindingShortestPath([]() -> int {return rand() % 21 + 4; }, [](int countNodes) -> int {int countEdges = countNodes * countNodes; return rand() % (countEdges / 2) + (countEdges - countEdges / 2) + 1; },
-//		name, weighted, oriented, weightValues);
-//
-//	cout << "\nFor large (40-80 nodes) sparse directed 0-1 graph:\n";
-//	CompareMethodsFindingShortestPath([]() -> int {return rand() % 41 + 40; }, [](int countNodes) -> int {return rand() % (countNodes * (countNodes - 1) / 2); },
-//		name, weighted, oriented, weightValues);
-//
-//	cout << "\nFor large (40-80 nodes) dense directed 0-1 graph:\n";
-//	CompareMethodsFindingShortestPath([]() -> int {return rand() % 41 + 40; }, [](int countNodes) -> int {int countEdges = countNodes * countNodes; return rand() % (countEdges / 2) + (countEdges - countEdges / 2) + 1; },
-//		name, weighted, oriented, weightValues);
-//
-//	oriented = false;
-//	weightValues = { 1, 2 };
-//
-//	cout << "\nFor small (4-24 nodes) sparse undirected 1-2 graph:\n";
-//	CompareMethodsFindingShortestPath([]() -> int {return rand() % 21 + 4; }, [](int countNodes) -> int {return rand() % (countNodes * (countNodes - 1) / 4); },
-//		name, weighted, oriented, weightValues);
-//
-//	cout << "\nFor small (4-24 nodes) dense undirected 1-2 graph:\n";
-//	CompareMethodsFindingShortestPath([]() -> int {return rand() % 21 + 4; }, [](int countNodes) -> int {int countEdges = (countNodes * (countNodes - 1) / 2); return rand() % (countEdges / 2) + (countEdges - countEdges / 2) + 1; },
-//		name, weighted, oriented, weightValues);
-//
-//	cout << "\nFor large (40-80 nodes) sparse undirected 1-2 graph:\n";
-//	CompareMethodsFindingShortestPath([]() -> int {return rand() % 41 + 40; }, [](int countNodes) -> int {return rand() % (countNodes * (countNodes - 1) / 4); },
-//		name, weighted, oriented, weightValues);
-//
-//	cout << "\nFor large (40-80 nodes) dense undirected 1-2 graph:\n";
-//	CompareMethodsFindingShortestPath([]() -> int {return rand() % 41 + 40; }, [](int countNodes) -> int {int countEdges = (countNodes * (countNodes - 1) / 2); return rand() % (countEdges / 2) + (countEdges - countEdges / 2) + 1; },
-//		name, weighted, oriented, weightValues);
-//
-//	oriented = true;
-//
-//	cout << "\nFor small (4-24 nodes) sparse directed 1-2 graph:\n";
-//	CompareMethodsFindingShortestPath([]() -> int {return rand() % 21 + 4; }, [](int countNodes) -> int {return rand() % (countNodes * countNodes / 2); },
-//		name, weighted, oriented, weightValues);
-//
-//	cout << "\nFor small (4-24 nodes) dense directed 1-2 graph:\n";
-//	CompareMethodsFindingShortestPath([]() -> int {return rand() % 21 + 4; }, [](int countNodes) -> int {int countEdges = countNodes * countNodes; return rand() % (countEdges / 2) + (countEdges - countEdges / 2) + 1; },
-//		name, weighted, oriented, weightValues);
-//
-//	cout << "\nFor large (40-80 nodes) sparse directed 1-2 graph:\n";
-//	CompareMethodsFindingShortestPath([]() -> int {return rand() % 41 + 40; }, [](int countNodes) -> int {return rand() % (countNodes * (countNodes - 1) / 2); },
-//		name, weighted, oriented, weightValues);
-//
-//	cout << "\nFor large (40-80 nodes) dense directed 1-2 graph:\n";
-//	CompareMethodsFindingShortestPath([]() -> int {return rand() % 41 + 40; }, [](int countNodes) -> int {int countEdges = countNodes * countNodes; return rand() % (countEdges / 2) + (countEdges - countEdges / 2) + 1; },
-//		name, weighted, oriented, weightValues);
-//}
+void DataStorage::CompareBestMaxFlowMetods() {
+	CompareMethods(200, 0.5, 10000, 25, { "PushRelabelMatrix_v3", "DinicMaxFlowWithEdges" });
+}
 
 DataStorage::~DataStorage() {
 	cout << "DataStorage: start deleting...\n";
