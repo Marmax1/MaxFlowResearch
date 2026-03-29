@@ -28,57 +28,46 @@ bool Graph::IsNodeVisited(string node) {
 	return true;
 }
 
-vector<string> Graph::GetWayByPrev(string from, string to, unordered_map<string, string>& prev) {
-	vector<string> way;
-	while (to != from) {
-		way.push_back(to);
-		to = prev[to];
-	}
-	way.push_back(from);
-	reverse(way.begin(), way.end());
-	return way;
-}
-
 vector<string> Graph::MergeVectors(vector<string> first, vector<string> second) {
 	vector<string> vec(first);
 	vec.insert(vec.end(), second.begin(), second.end());
 	return vec;
 }
 
-long long Graph::DFSWithDelta(string u, string t, long long delta, unordered_map<string, string>& parent) {
-	visited.insert(u);
-
-	if (u == t) {
-		return delta; // Нашли путь до стока
-	}
-
-	for (auto& edge : nodes[u]) {
-		string v = edge.first;
-		long long capacity = edge.second;
-
-		if (!IsNodeVisited(v) && capacity >= delta) {
-			parent[v] = u;
-			long long min_flow = DFSWithDelta(v, t, delta, parent);
-
-			if (min_flow > 0) {
-				// Обновляем пропускные способности
-				nodes[u][v] -= min_flow;
-				if (!oriented) {
-					nodes[v][u] += min_flow;
-				}
-				else {
-					// Для ориентированного графа добавляем обратное ребро
-					if (nodes[v].find(u) == nodes[v].end()) {
-						nodes[v][u] = 0;
-					}
-					nodes[v][u] += min_flow;
-				}
-				return min_flow;
-			}
-		}
-	}
-	return 0;
-}
+//long long Graph::DFSWithDelta(string u, string t, long long delta, unordered_map<string, string>& parent) {
+//	visited.insert(u);
+//
+//	if (u == t) {
+//		return delta; // Нашли путь до стока
+//	}
+//
+//	for (auto& edge : nodes[u]) {
+//		string v = edge.first;
+//		long long capacity = edge.second;
+//
+//		if (!IsNodeVisited(v) && capacity >= delta) {
+//			parent[v] = u;
+//			long long min_flow = DFSWithDelta(v, t, delta, parent);
+//
+//			if (min_flow > 0) {
+//				// Обновляем пропускные способности
+//				nodes[u][v] -= min_flow;
+//				if (!oriented) {
+//					nodes[v][u] += min_flow;
+//				}
+//				else {
+//					// Для ориентированного графа добавляем обратное ребро
+//					if (nodes[v].find(u) == nodes[v].end()) {
+//						nodes[v][u] = 0;
+//					}
+//					nodes[v][u] += min_flow;
+//				}
+//				return min_flow;
+//			}
+//		}
+//	}
+//	return 0;
+//}
 
 
 
@@ -190,10 +179,8 @@ void Graph::TransformToRandomFlowGraph(string name, unsigned int countNodes, flo
 	this->weighted = true;
 	this->oriented = true;
 
-	// Add nodes
-	for (unsigned int i = 0; i < countNodes; i++) {
-		AddNode(to_string(i));
-	}
+	// Создаём матрицу смежности
+	adjacencyMatrix = vector<vector<long long>>(countNodes, vector<long long>(countNodes, 0));
 
 	random_device rd;
 	mt19937 gen(rd());
@@ -229,7 +216,7 @@ void Graph::TransformToRandomFlowGraph(string name, unsigned int countNodes, flo
 		unsigned int root_v = find_root(v);
 
 		if (root_u != root_v) {
-			AddEdge(to_string(u), to_string(v), weight_dist(gen));
+			adjacencyMatrix[u][v] = weight_dist(gen);
 			parent[root_v] = root_u;
 			edges_added++;
 
@@ -237,7 +224,7 @@ void Graph::TransformToRandomFlowGraph(string name, unsigned int countNodes, flo
 		}
 	}
 
-	// Step 2: Add random edges
+	// Шаг 2: добавляем дуги до нужной плотности
 	unsigned int max_possible_edges = countNodes * (countNodes - 1) / 2;
 	unsigned int total_edges_needed = static_cast<unsigned int>(max_possible_edges * density);
 	unsigned int additional_edges = total_edges_needed - edges_added;
@@ -246,70 +233,46 @@ void Graph::TransformToRandomFlowGraph(string name, unsigned int countNodes, flo
 	unsigned int edges_to_add = min(additional_edges, edges_available);
 
 	for (unsigned int i = 0, added = 0; added < edges_to_add && i < possible_edges.size(); i++) {
-		const auto& edge = possible_edges[i];
-		if (!IsEdgeExist(to_string(edge.first), to_string(edge.second))) {
-			AddEdge(to_string(edge.first), to_string(edge.second), weight_dist(gen));		///////////// поменять !!!!!!!!!!!!!!!!!
+		unsigned int u = possible_edges[i].first;
+		unsigned int v = possible_edges[i].second;
+		if (adjacencyMatrix[u][v] == 0) { // Проверка, не была ли дуга уже добавлена при формировании остовного дерева
+			adjacencyMatrix[u][v] = weight_dist(gen);
 			added++;
 		}
 	}
 
-	// Step 3: Detect sources and sinks
-	unordered_set<string> sources;
-	unordered_set<string> sinks;
-	unordered_map<string, bool> count_incoming;
+	// Шаг 3: найти все источники и стоки и свести их к одному
+	vector<int> sources, sinks;
+	vector<bool> hasOutgoing(countNodes, false), hasIncoming(countNodes, false);
 
-	// Initialize count_incoming
-	for (unsigned int i = 0; i < countNodes; i++) {
-		count_incoming[to_string(i)] = false;
-	}
-
-	// Find all nodes with incoming edges
-	for (const auto& node : nodes) {
-		for (const auto& edge : node.second) {
-			count_incoming[edge.first] = true;
+	for (int i = 0; i < countNodes; ++i) {
+		for (int j = 0; j < countNodes; ++j) {
+			if (adjacencyMatrix[i][j]) {
+				hasOutgoing[i] = true;
+				hasIncoming[j] = true;
+			}
 		}
 	}
 
-	// Identify sources and sinks
-	for (unsigned int i = 0; i < countNodes; i++) {
-		string node = to_string(i);
-		if (!count_incoming[node]) {
-			sources.insert(node);
+	// Собираем результаты
+	for (int i = 0; i < countNodes; ++i) {
+		if (hasOutgoing[i] && !hasIncoming[i]) sources.push_back(i);
+		if (!hasOutgoing[i] && hasIncoming[i]) sinks.push_back(i);
+	}
+
+	// Step 4: Normalize sources and sinks			// Можно НЕ СОЗДАВАТЬ СУПЕРИСТОЧНИК И СУПЕРИСТОК, а соеденить с 0 и последним
+
+	for (auto& sourse : sources) {
+		if (sourse != 0) {
+			adjacencyMatrix[0][sourse] = weight_dist(gen);
 		}
-		if (nodes[node].empty()) {
-			sinks.insert(node);
+	}
+	for (auto& sink : sinks) {
+		if (sink != countNodes - 1) {
+			adjacencyMatrix[sink][countNodes - 1] = weight_dist(gen);
 		}
 	}
 
-	// Step 4: Normalize sources and sinks
-	string super_source = "source";
-	string super_sink = "sink";
-	bool need_super_source = sources.size() != 1;
-	bool need_super_sink = sinks.size() != 1;
-
-	if (need_super_source) {
-		AddNode(super_source);
-		for (const auto& src : sources) {
-			AddEdge(super_source, src, weight_dist(gen));
-		}
-	}
-	else {
-		CopyNode("0", super_source);
-		DeleteNode("0");
-	}
-
-	if (need_super_sink) {
-		AddNode(super_sink);
-		for (const auto& snk : sinks) {
-			AddEdge(snk, super_sink, weight_dist(gen));
-		}
-	}
-	else {
-		CopyNode(to_string(countNodes - 1), super_sink);
-		DeleteNode(to_string(countNodes - 1));
-	}
-
-	BuildAdjacencyMatrix();
 	BuildAdjEdgesFromMatrix();
 	initGargKonemann();
 }
@@ -1232,74 +1195,74 @@ long long Graph::getMaxFlowDinic(int source, int sink) {
 }
 
 
-
-
-bool Graph::bfsWithEdges(int s, int t, vector<int>& level) {
-	fill(level.begin(), level.end(), -1);
-	level[s] = 0;
-
-	queue<int> q;
-	q.push(s);
-
-	while (!q.empty()) {
-		int u = q.front();
-		q.pop();
-
-		for (FlowEdge& e : adj[u]) {
-			if (e.capacity > 0 && level[e.to] == -1) {
-				level[e.to] = level[u] + 1;
-				if (e.to == t) return true; // Ранний выход
-				q.push(e.to);
-			}
-		}
-	}
-
-	return false;
-}
-
-long long Graph::dfsWithEdges(int u, int t, long long flow, vector<int>& ptr, vector<int>& level) {
-	if (u == t || flow == 0)
-		return flow;
-
-	for (int& i = ptr[u]; i < adj[u].size(); ++i) {
-		FlowEdge& e = adj[u][i];
-		if (level[e.to] == level[u] + 1 && e.capacity > 0) {
-			long long pushed = dfsWithEdges(e.to, t, min(flow, e.capacity), ptr, level);
-			if (pushed > 0) {
-				e.capacity -= pushed;
-				adj[e.to][e.rev].capacity += pushed;
-				return pushed;
-			}
-		}
-	}
-
-	return 0;
-}
-
-
-// Основной метод алгоритма Диница
-long long Graph::getMaxFlowDinicWithEdges(int source, int sink) {
-	if (source == sink)
-		return 0;
-
-	long long maxFlow = 0;
-	vector<int> level(adj.size());
-	vector<int> ptr(adj.size());
-
-	while (bfsWithEdges(source, sink, level)) {
-		fill(ptr.begin(), ptr.end(), 0);
-
-		while (long long pushed = dfsWithEdges(source, sink, INF, ptr, level)) {
-			maxFlow += pushed;
-		}
-	}
-
-	return maxFlow;
-}
-
-
-
-
+//
+//
+//bool Graph::bfsWithEdges(int s, int t, vector<int>& level) {
+//	fill(level.begin(), level.end(), -1);
+//	level[s] = 0;
+//
+//	queue<int> q;
+//	q.push(s);
+//
+//	while (!q.empty()) {
+//		int u = q.front();
+//		q.pop();
+//
+//		for (FlowEdge& e : adj[u]) {
+//			if (e.capacity > 0 && level[e.to] == -1) {
+//				level[e.to] = level[u] + 1;
+//				q.push(e.to);
+//			}
+//		}
+//	}
+//
+//	return level[t] != -1;
+//}
+//
+//long long Graph::dfsWithEdges(int u, int t, long long flow, vector<int>& ptr, vector<int>& level) {
+//	if (u == t || flow == 0)
+//		return flow;
+//
+//	for (int& i = ptr[u]; i < adj[u].size(); ++i) {
+//		FlowEdge& e = adj[u][i];
+//		if (level[i] == level[u] + 1 && e.capacity > 0) {
+//			long long pushed = dfsWithEdges(i, t, min(flow, e.capacity), ptr, level);
+//			if (pushed > 0) {
+//				e.capacity -= pushed;
+//				adj[i][u].capacity += pushed;
+//				return pushed;
+//			}
+//		}
+//	}
+//
+//	return 0;
+//}
+//
+//
+//// Основной метод алгоритма Диница
+///////////////////////// ГДЕ ОШИБКА, ВЫДАЁТ НЕПРАВИЛЬНЫЕ РЕЗУЛЬТАТЫ НА БОЛЬШИХ ГРАФАХ
+//long long Graph::getMaxFlowDinicWithEdges(int source, int sink) { 
+//	if (source == sink)
+//		return 0;
+//
+//	long long maxFlow = 0;
+//	vector<int> level(adj.size());
+//	vector<int> ptr(adj.size());
+//
+//	while (bfsWithEdges(source, sink, level)) {
+//		fill(ptr.begin(), ptr.end(), 0);
+//
+//		while (long long pushed = dfsWithEdges(source, sink, INF, ptr, level)) {
+//			maxFlow += pushed;
+//		}
+//	}
+//
+//	return maxFlow;
+//}
+//
+//
+//
+//
 
 // Приближённый
 

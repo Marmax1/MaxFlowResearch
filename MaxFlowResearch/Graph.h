@@ -36,9 +36,8 @@ private:
 	unordered_map<string, int> nodeIndexMap;
 
 	bool IsNodeVisited(string node);
-	vector<string> GetWayByPrev(string from, string to, unordered_map<string, string>& prev);
 	vector<string> MergeVectors(vector<string> first, vector<string> second);
-	long long DFSWithDelta(string u, string t, long long delta, unordered_map<string, string>& parent);
+	//long long DFSWithDelta(string u, string t, long long delta, unordered_map<string, string>& parent);
 
 	static const long long INF = (long long)1e18 + 1;
 
@@ -94,7 +93,7 @@ public:
 
 	// Новый метод для алгоритма Диница
 	long long getMaxFlowDinic(int source, int sink);
-	long long getMaxFlowDinicWithEdges(int source, int sink);
+	//long long getMaxFlowDinicWithEdges(int source, int sink);
 
 	// Новый метод для алгоритма MaxFlow-WO
 	//long long MaxFlowWO(const string& source, const string& sink, int max_iterations = 10);

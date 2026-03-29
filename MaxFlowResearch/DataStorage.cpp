@@ -209,12 +209,7 @@ long long DataStorage::GetMaxFlowDinic(string s, string t) {
 	iter = --graphs.end();
 
 	CreateCopyGraph(iter->GetName() + "Copy");
-	cout << iter->getMaxFlowDinic(0, iter->GetCountOfNodes() - 1) << '\n';
-	DeleteGraph();
-	iter = --graphs.end();
-
-	CreateCopyGraph(iter->GetName() + "Copy");
-	maxFlow = iter->getMaxFlowDinicWithEdges(0, iter->GetCountOfNodes() - 1);
+	maxFlow = iter->getMaxFlowDinic(0, iter->GetCountOfNodes() - 1) << '\n';
 	DeleteGraph();
 	iter = --graphs.end();
 	return maxFlow;
@@ -284,10 +279,22 @@ void DataStorage::CompareMethods(unsigned int countNodes, float density, unsigne
 			iter = --graphs.end();
 			return maxFlow;
 		}},
-		{"DinicMaxFlowWithEdges", [this](int s, int t, long long& time) {
+		/*{"DinicMaxFlowWithEdges", [this](int s, int t, long long& time) {
 			CreateCopyGraph(iter->GetName() + "Copy");
 			auto start = chrono::steady_clock::now();
 			long long maxFlow = iter->getMaxFlowDinicWithEdges(s, t);
+			auto end = chrono::steady_clock::now();
+			time = chrono::duration_cast<chrono::microseconds>(end - start).count();
+			DeleteGraph();
+			iter = --graphs.end();
+			return maxFlow;
+		}},*/
+
+		// другие...
+		{"gargKonemannMaxFlow", [this](int s, int t, long long& time) {
+			CreateCopyGraph(iter->GetName() + "Copy");
+			auto start = chrono::steady_clock::now();
+			long long maxFlow = iter->gargKonemannMaxFlow(s, t);
 			auto end = chrono::steady_clock::now();
 			time = chrono::duration_cast<chrono::microseconds>(end - start).count();
 			DeleteGraph();
@@ -298,7 +305,7 @@ void DataStorage::CompareMethods(unsigned int countNodes, float density, unsigne
 
 	// Вектор для хранения общего времени
 	vector<long long> totalTime(methodNames.size(), 0);
-	vector<vector<long long>> maxFlows(countGraphs, vector<long long>(methodNames.size(), 0)); // Для проверки корректности
+	vector<vector<long long>> maxFlows(countGraphs, vector<long long>(methodNames.size(), 0)); // Результаты выполнения методов
 
 	int n = 0;
 	while (n < countGraphs) {
@@ -364,13 +371,12 @@ void DataStorage::ComparePushRelabelMethods() {
 }
 
 void DataStorage::CompareDinicMethods() {
-	CompareMethods(200, 0.5, 10000, 25, { "DinicMaxFlow_unordered_map",
-		"DinicMaxFlowMatrix",
-		"DinicMaxFlowWithEdges"});
+	CompareMethods(5000, 0.6, 10000, 25, { "DinicMaxFlow_unordered_map",
+		"DinicMaxFlowMatrix"});
 }
 
 void DataStorage::CompareBestMaxFlowMetods() {
-	CompareMethods(200, 0.5, 10000, 25, { "PushRelabelMatrix_v3", "DinicMaxFlowWithEdges" });
+	CompareMethods(300, 0.8, 10000, 25, { "PushRelabelMatrix_v3", "DinicMaxFlowMatrix", "gargKonemannMaxFlow"});
 }
 
 DataStorage::~DataStorage() {
