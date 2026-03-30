@@ -199,7 +199,10 @@ void Graph::TransformToRandomFlowGraph(string name, unsigned int countNodes, flo
 		return u;
 		};
 
+	// Создание массива со случайно расположенными дугами
+	
 	vector<pair<unsigned int, unsigned int>> possible_edges;
+	possible_edges.reserve(countNodes * (countNodes - 1) / 2); // резервирование памяти под кол-во дуг
 	for (unsigned int i = 0; i < countNodes; i++) {
 		for (unsigned int j = i + 1; j < countNodes; j++) {
 			possible_edges.push_back(make_pair(i, j));
@@ -243,13 +246,13 @@ void Graph::TransformToRandomFlowGraph(string name, unsigned int countNodes, flo
 
 	// Шаг 3: найти все источники и стоки и свести их к одному
 	vector<int> sources, sinks;
-	vector<bool> hasOutgoing(countNodes, false), hasIncoming(countNodes, false);
+	vector<char> hasOutgoing(countNodes, false), hasIncoming(countNodes, false);	// поменял с bool на char, стало в 10 раз быстрее (что???)
 
 	for (int i = 0; i < countNodes; ++i) {
-		for (int j = 0; j < countNodes; ++j) {
+		for (int j = i + 1; j < countNodes; ++j) {
 			if (adjacencyMatrix[i][j]) {
-				hasOutgoing[i] = true;
-				hasIncoming[j] = true;
+				hasOutgoing[i] = 1;
+				hasIncoming[j] = 1;
 			}
 		}
 	}

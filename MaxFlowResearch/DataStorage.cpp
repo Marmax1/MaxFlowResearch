@@ -371,7 +371,7 @@ void DataStorage::ComparePushRelabelMethods() {
 }
 
 void DataStorage::CompareDinicMethods() {
-	CompareMethods(5000, 0.6, 10000, 25, { "DinicMaxFlow_unordered_map",
+	CompareMethods(10000, 0.6, 10000, 25, { "DinicMaxFlow_unordered_map",
 		"DinicMaxFlowMatrix"});
 }
 
