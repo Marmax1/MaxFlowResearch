@@ -20,19 +20,19 @@ public:
 	bool IsWeighted();
 	bool IsOriented();
 	bool IsGraphExist(string name);
-	void AddNode(string node);
-	void AddEdge(string nodeFrom, string nodeWhere, int value);
-	void DeleteNode(string node);
-	void DeleteEdge(string nodeFrom, string nodeWhere);
-	void ChangeValueWay(string nodeFrom, string nodeWhere, int value);
+	void AddNode(int node);
+	void AddEdge(int nodeFrom, int nodeWhere, int value);
+	void DeleteNode(int node);
+	void DeleteEdge(int nodeFrom, int nodeWhere);
+	void ChangeValueWay(int nodeFrom, int nodeWhere, int value);
 	void WriteToConsole();
 	void WriteToConsoleAll();
 
 
 
-	long long GetMaxFlowFordFulkerson(string s, string t);
+	long long GetMaxFlowFordFulkerson(int s, int t);
 	long long GetMaxFlowPushRelabel();
-	long long GetMaxFlowDinic(string s, string t);
+	long long GetMaxFlowDinic(int s, int t);
 	
 	long long gargKonemannMaxFlow();
 
@@ -45,7 +45,7 @@ public:
 	/*
 	Create random graph with the specified parameters
 	density - плотность (from 0 to 1)
-	weightValues - массив возможных весов (empty is any number)
+	Значения дуг от 1 до maxWeightValue
 	*/
 	void CreateRandomFlowGraph(unsigned int countNodes = 10, float density = 0.4, unsigned int maxWeightValue = 10000);
 

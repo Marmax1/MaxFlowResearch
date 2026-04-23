@@ -85,15 +85,15 @@ bool DataStorage::IsOriented() {
 	return iter->IsOriented();
 }
 
-void DataStorage::AddNode(string node) {
+void DataStorage::AddNode(int node) {
 	if (iter->IsNodeExist(node)) {
-		throw "Вершина " + node + " уже существует";
+		throw "Вершина " + to_string(node) + " уже существует";
 	}
 	else
 		iter->AddNode(node);
 }
 
-void DataStorage::AddEdge(string nodeFrom, string nodeWhere, int value) {
+void DataStorage::AddEdge(int nodeFrom, int nodeWhere, int value) {
 	if (nodeFrom == nodeWhere && !IsOriented())
 		throw string("Нельзя создать петлю в неориентированном графе");
 
@@ -107,33 +107,33 @@ void DataStorage::AddEdge(string nodeFrom, string nodeWhere, int value) {
 
 	if (iter->IsEdgeExist(nodeFrom, nodeWhere)) {
 		if (IsOriented()) {
-			throw "Дуга " + nodeFrom + " -> " + nodeWhere + " уже существует";
+			throw "Дуга " + to_string(nodeFrom) + " -> " + to_string(nodeWhere) + " уже существует";
 		}
 		else {
-			throw "Ребро " + nodeFrom + " -- " + nodeWhere + " уже существует";
+			throw "Ребро " + to_string(nodeFrom) + " -- " + to_string(nodeWhere) + " уже существует";
 		}
 	}
 
 	iter->AddEdge(nodeFrom, nodeWhere, value);
 }
 
-void DataStorage::DeleteNode(string node) {
+void DataStorage::DeleteNode(int node) {
 	if (iter->IsNodeExist(node)) {
 		iter->DeleteNode(node);
 	}
 	else
-		throw "Вершины " + node + " не существует";
+		throw "Вершины " + to_string(node) + " не существует";
 }
 
-void DataStorage::DeleteEdge(string nodeFrom, string nodeWhere) {
+void DataStorage::DeleteEdge(int nodeFrom, int nodeWhere) {
 	if (iter->IsEdgeExist(nodeFrom, nodeWhere)) {
 		iter->DeleteEdge(nodeFrom, nodeWhere);
 	}
 	else
-		throw "Дуга " + nodeFrom + " -> " + nodeWhere + " и так не существует";
+		throw "Дуга " + to_string(nodeFrom) + " -> " + to_string(nodeWhere) + " и так не существует";
 }
 
-void DataStorage::ChangeValueWay(string nodeFrom, string nodeWhere, int value) {
+void DataStorage::ChangeValueWay(int nodeFrom, int nodeWhere, int value) {
 	int error = 0;
 	if (!iter->IsNodeExist(nodeFrom))
 		error += 1;
@@ -155,7 +155,7 @@ void DataStorage::WriteToConsoleAll() {
 	}
 }
 
-long long DataStorage::GetMaxFlowFordFulkerson(string s, string t) {
+long long DataStorage::GetMaxFlowFordFulkerson(int s, int t) {
 	if (!iter->IsOriented() || !iter->IsWeighted())
 		throw string("Граф должен быть ориентированным и взвешенным");
 
@@ -184,20 +184,20 @@ long long DataStorage::GetMaxFlowPushRelabel() {
 	if (!iter->IsOriented() || !iter->IsWeighted())
 		throw string("Граф должен быть ориентированным и взвешенным");
 
-	if (!(iter->IsNodeExist("source") && iter->IsNodeExist("sink")))
-		throw string("Какой-то из вершин не существует");
+	/*if (!(iter->IsNodeExist(0) && iter->IsNodeExist("sink")))
+		throw string("Какой-то из вершин не существует");*/
 
 	cout << iter->getMaxFlowPushRelabel(0, iter->GetCountOfNodes() - 1) << '\n';
 	cout << iter->getMaxFlowPushRelabel_HLF(0, iter->GetCountOfNodes() - 1) << '\n';
 	return iter->getMaxFlowPushRelabel_HLF_GlRel(0, iter->GetCountOfNodes() - 1);
 }
 
-long long DataStorage::GetMaxFlowDinic(string s, string t) {
+long long DataStorage::GetMaxFlowDinic(int s, int t) {
 	if (!iter->IsOriented() || !iter->IsWeighted())
 		throw string("Граф должен быть ориентированным и взвешенным");
 
-	if (!(iter->IsNodeExist(s) && iter->IsNodeExist(t)))
-		throw string("Какой-то из вершин не существует");
+	/*if (!(iter->IsNodeExist(s) && iter->IsNodeExist(t)))
+		throw string("Какой-то из вершин не существует");*/
 
 	long long maxFlow;
 
@@ -209,7 +209,7 @@ long long DataStorage::GetMaxFlowDinic(string s, string t) {
 	iter = --graphs.end();
 
 	CreateCopyGraph(iter->GetName() + "Copy");
-	maxFlow = iter->getMaxFlowDinic(0, iter->GetCountOfNodes() - 1) << '\n';
+	maxFlow = iter->getMaxFlowDinicMatrix(s, t);
 	DeleteGraph();
 	iter = --graphs.end();
 	return maxFlow;
@@ -219,8 +219,8 @@ long long DataStorage::gargKonemannMaxFlow() {
 	if (!iter->IsOriented() || !iter->IsWeighted())
 		throw string("Граф должен быть ориентированным и взвешенным");
 
-	if (!(iter->IsNodeExist("source") && iter->IsNodeExist("sink")))
-		throw string("Какой-то из вершин не существует");
+	/*if (!(iter->IsNodeExist("source") && iter->IsNodeExist("sink")))
+		throw string("Какой-то из вершин не существует");*/
 
 	return iter->gargKonemannMaxFlow(0, iter->GetCountOfNodes() - 1);
 }
@@ -250,29 +250,60 @@ void DataStorage::CompareMethods(unsigned int countNodes, float density, unsigne
 			time = chrono::duration_cast<chrono::microseconds>(end - start).count();
 			return maxFlow;
 		}},
-		{"PushRelabelMatrixMaxPushes", [this](int s, int t, long long& time) {
+		{"PushRelabelUnordered_map", [this](int s, int t, long long& time) {
 			auto start = chrono::steady_clock::now();
-			long long maxFlow = iter->PushRelabelMatrix(to_string(s), to_string(t));
+			long long maxFlow = iter->getMaxFlowPushRelabel_HLF_GlRelUnordered_map(s, t);
 			auto end = chrono::steady_clock::now();
 			time = chrono::duration_cast<chrono::microseconds>(end - start).count();
 			return maxFlow;
 		}},
 
 		// Dinic методы
-		{"DinicMaxFlow_unordered_map", [this](int s, int t, long long& time) {
+		
+		{"DinicMaxFlowMatrix", [this](int s, int t, long long& time) {
 			CreateCopyGraph(iter->GetName() + "Copy");
 			auto start = chrono::steady_clock::now();
-			long long maxFlow = iter->DinicMaxFlowMatrix("source", "sink");
+			long long maxFlow = iter->getMaxFlowDinicMatrix(s, t);
 			auto end = chrono::steady_clock::now();
 			time = chrono::duration_cast<chrono::microseconds>(end - start).count();
 			DeleteGraph();
 			iter = --graphs.end();
 			return maxFlow;
 		}},
-		{"DinicMaxFlowMatrix", [this](int s, int t, long long& time) {
+		{"DinicMaxFlowMatrixOptimized", [this](int s, int t, long long& time) {
 			CreateCopyGraph(iter->GetName() + "Copy");
 			auto start = chrono::steady_clock::now();
-			long long maxFlow = iter->getMaxFlowDinic(s, t);
+			long long maxFlow = iter->getMaxFlowDinicMatrixOptimized(s, t);
+			auto end = chrono::steady_clock::now();
+			time = chrono::duration_cast<chrono::microseconds>(end - start).count();
+			DeleteGraph();
+			iter = --graphs.end();
+			return maxFlow;
+		}},
+		{"DinicMaxFlowCapacityScaling", [this](int s, int t, long long& time) {
+			CreateCopyGraph(iter->GetName() + "Copy");
+			auto start = chrono::steady_clock::now();
+			long long maxFlow = iter->getMaxFlowDinicCapacityScaling(s, t, 10000);
+			auto end = chrono::steady_clock::now();
+			time = chrono::duration_cast<chrono::microseconds>(end - start).count();
+			DeleteGraph();
+			iter = --graphs.end();
+			return maxFlow;
+		}},
+		{"MaxFlowDinicUnord_map", [this](int s, int t, long long& time) {
+			CreateCopyGraph(iter->GetName() + "Copy");
+			auto start = chrono::steady_clock::now();
+			long long maxFlow = iter->getMaxFlowDinicUnord_map(s, t);
+			auto end = chrono::steady_clock::now();
+			time = chrono::duration_cast<chrono::microseconds>(end - start).count();
+			DeleteGraph();
+			iter = --graphs.end();
+			return maxFlow;
+		}},
+		{"MaxFlowDinicUnord_mapCapacityScaling", [this](int s, int t, long long& time) {
+			CreateCopyGraph(iter->GetName() + "Copy");
+			auto start = chrono::steady_clock::now();
+			long long maxFlow = iter->getMaxFlowDinicUnord_mapCapacityScaling(s, t, 10000);
 			auto end = chrono::steady_clock::now();
 			time = chrono::duration_cast<chrono::microseconds>(end - start).count();
 			DeleteGraph();
@@ -307,6 +338,8 @@ void DataStorage::CompareMethods(unsigned int countNodes, float density, unsigne
 	vector<long long> totalTime(methodNames.size(), 0);
 	vector<vector<long long>> maxFlows(countGraphs, vector<long long>(methodNames.size(), 0)); // Результаты выполнения методов
 
+	size_t countEdges = countNodes * (countNodes - 1) / 2 * density;
+
 	int n = 0;
 	while (n < countGraphs) {
 		CreateRandomFlowGraph(countNodes, density, maxWeightValue);
@@ -315,7 +348,7 @@ void DataStorage::CompareMethods(unsigned int countNodes, float density, unsigne
 		int t = currentCountNodes - 1;
 
 		// Проверяем каждый метод
-		for (size_t i = 0; i < methodNames.size(); ++i) {
+		for (size_t i = 0; i < methodNames.size(); i++) {
 			const auto& name = methodNames[i];
 			if (methods.find(name) == methods.end()) {
 				cout << "Unknown method: " << name << endl;
@@ -325,19 +358,22 @@ void DataStorage::CompareMethods(unsigned int countNodes, float density, unsigne
 			long long time = 0;
 			long long maxFlow = methods[name](s, t, time);
 			totalTime[i] += time;
-			maxFlows[n][i] = maxFlow; // Сохраняем последний maxFlow (можно добавить проверку)
+			maxFlows[n][i] = maxFlow; // Сохраняем последний maxFlow (для проверки)
 		}
 
 		system("cls");
 
 		cout << "--------------------------------------------------------------------------------------\n";
-		cout << "Сравнение методов для графов с " << countNodes << " вершинами и плотностью " << density << '\n';
-		cout << "Количество тестовых графов: " << n << "\n\n";
+		cout << "Сравнение методов для ориентированных ациклических графов с:\n";
+		cout << countNodes << " вершинами\n";
+		cout << "плотностью " << density << " (кол-во дуг около " << countEdges << ")\n";
+		cout << "максимальным значение пропускной способности = " << maxWeightValue << '\n';
+		cout << "Количество тестовых графов: " << n + 1 << "\n\n";
 		cout << "Среднее время выполнения (микросекунды):\n";
 
 		for (size_t i = 0; i < methodNames.size(); i++) {
 			if (i < totalTime.size()) {
-				double avgTime = static_cast<double>(totalTime[i]) / n;
+				double avgTime = static_cast<double>(totalTime[i]) / (n + 1);
 				cout << methodNames[i] << ": " << avgTime / 1000 << " мс\n";
 			}
 		}
@@ -362,21 +398,21 @@ void DataStorage::CompareMethods(unsigned int countNodes, float density, unsigne
 	}
 }
 
+//
 void DataStorage::ComparePushRelabelMethods() {
-	CompareMethods(200, 0.3, 10000, 25, { "PushRelabelMatrix",
-		"PushRelabelMatrix_HLF",
+	CompareMethods(100, 0.1, 10000, 25, { "PushRelabelMatrix", "PushRelabelMatrix_HLF",
 		"PushRelabelMatrix_v3",
-		"PushRelabelMatrixMaxPushes"
+		"PushRelabelUnordered_map",
 		});
 }
 
 void DataStorage::CompareDinicMethods() {
-	CompareMethods(10000, 0.6, 10000, 25, { "DinicMaxFlow_unordered_map",
-		"DinicMaxFlowMatrix"});
+	CompareMethods(100, 0.01, 10000, 25, {
+		"DinicMaxFlowMatrixOptimized", "DinicMaxFlowCapacityScaling", "MaxFlowDinicUnord_map", "MaxFlowDinicUnord_mapCapacityScaling" });
 }
 
 void DataStorage::CompareBestMaxFlowMetods() {
-	CompareMethods(300, 0.8, 10000, 25, { "PushRelabelMatrix_v3", "DinicMaxFlowMatrix", "gargKonemannMaxFlow"});
+	CompareMethods(300, 0.6, 10000, 25, { "PushRelabelMatrix_v3", "DinicMaxFlowMatrixOptimized", "gargKonemannMaxFlow"});
 }
 
 DataStorage::~DataStorage() {

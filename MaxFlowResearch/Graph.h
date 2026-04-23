@@ -19,23 +19,22 @@ typedef pair<vector<string>, long long> way;
 class Graph
 {
 private:
-	struct FlowEdge {
-		int to;
-		long long capacity;
-		int rev;
+	struct Edge {
+		int to, rev;  // rev - индекс обратного ребра
+		long long cap, flow;
 	};
 
 	string name;
-	unordered_map<string, unordered_map<string, long long>> nodes;
+	unordered_map<int, unordered_map<int, long long>> nodes;
 	bool weighted;
 	bool oriented;
-	unordered_set<string> visited;
+	unordered_set<int> visited;
 
 	vector<vector<long long>> adjacencyMatrix;
-	vector<vector<FlowEdge>> adj;
+	vector<vector<Edge>> adj;
 	unordered_map<string, int> nodeIndexMap;
 
-	bool IsNodeVisited(string node);
+	bool IsNodeVisited(int node);
 	vector<string> MergeVectors(vector<string> first, vector<string> second);
 	//long long DFSWithDelta(string u, string t, long long delta, unordered_map<string, string>& parent);
 
@@ -43,7 +42,17 @@ private:
 
 	// Вспомогательные методы для алгоритма Диница
 	bool bfs(int s, int t, vector<int>& level);
-	long long dfs(int u, int t, long long flow, vector<int>& ptr, vector<int>& level);
+	bool bfsWithCapacity(int s, int t, vector<int>& level, long long delta);
+	bool bfsUnord_mapWithCapacity(int s, int t, unordered_map<int, int>& level, long long delta);
+	long long dfs(int u, int t, long long flow, vector<int>& level);
+	long long dfsOptimazed(int u, int t, long long flow, vector<int>& ptr, vector<int>& level);
+	long long dfsWithCapacity(int u, int t, long long flow, vector<int>& ptr, vector<int>& level, long long delta);
+	long long dfsUnord_mapWithCapacity(int u, int t, long long flow, unordered_map<int, int>& ptr, unordered_map<int, int>& level, long long delta);
+	
+
+	bool bfsUnord_map(int s, int t, unordered_map<int, int>& level);
+	long long dfsUnord_map(int u, int t, long long flow, unordered_map<int, int>& ptr, unordered_map<int, int>& level);
+
 
 	bool bfsWithEdges(int s, int t, vector<int>& level);
 	long long dfsWithEdges(int u, int t, long long flow, vector<int>& ptr, vector<int>& level);
@@ -62,37 +71,43 @@ public:
 	Graph();
 	Graph(string name, bool weighted, bool oriented);
 	Graph(const Graph&);
-	bool IsNodeExist(string node);
-	bool IsEdgeExist(string nodeFrom, string nodeWhere);
+	bool IsNodeExist(int node);
+	bool IsEdgeExist(int nodeFrom, int nodeWhere);
 	bool IsWeighted();
 	bool IsOriented();
 	int GetCountOfNodes();
 	void BuildAdjacencyMatrix();
 	void BuildAdjEdgesFromMatrix();
+	void BuildAdjacencyListFromMatrix();
 	string GetName();
 	void SetName(string name);
-	long long GetWeight(string nodeFrom, string nodeWhere);
-	void AddNode(string node);
-	void CopyNode(string node, string nameNewNode);
-	void AddEdge(string nodeFrom, string nodeWhere, long long value = 1);
-	void DeleteNode(string node);
+	long long GetWeight(int nodeFrom, int nodeWhere);
+	void AddNode(int node);
+	void CopyNode(int node, int nameNewNode);
+	void AddEdge(int nodeFrom, int nodeWhere, long long value = 1);
+	void DeleteNode(int node);
 	void DeleteAllNodes();
-	void DeleteEdge(string nodeFrom, string nodeWhere);
-	void DeleteAllEdgeTo(string node);
+	void DeleteEdge(int nodeFrom, int nodeWhere);
+	void DeleteAllEdgeTo(int node);
 	void ClearVisited();
 
 	/*long long FordFulkersonCheck(string s, string t);*/
-	long long FordFulkersonMatrix(string s, string t);
-	long long FordFulkersonBFS(string s, string t);
-	long long FordFulkersonScaling(string s, string t, double eps = 0.01);
-	long long FordFulkersonScalingApproximate(string s, string t, double eps = 0.01);
+	long long FordFulkersonMatrix(int s, int t);
+	long long FordFulkersonBFS(int s, int t);
+	long long FordFulkersonScaling(int s, int t, double eps = 0.01);
+	long long FordFulkersonScalingApproximate(int s, int t, double eps = 0.01);
 
 	long long getMaxFlowPushRelabel(int source, int sink);
 	long long getMaxFlowPushRelabel_HLF(int source, int sink);
 	long long getMaxFlowPushRelabel_HLF_GlRel(int source, int sink);
+	long long getMaxFlowPushRelabel_HLF_GlRelUnordered_map(int source, int sink);
 
 	// Новый метод для алгоритма Диница
-	long long getMaxFlowDinic(int source, int sink);
+	long long getMaxFlowDinicMatrix(int source, int sink);
+	long long getMaxFlowDinicMatrixOptimized(int source, int sink);
+	long long getMaxFlowDinicCapacityScaling(int source, int sink, long long maxCapacity = 10000);
+	long long getMaxFlowDinicUnord_map(int source, int sink);
+	long long getMaxFlowDinicUnord_mapCapacityScaling(int source, int sink, long long maxCapacity = 10000);
 	//long long getMaxFlowDinicWithEdges(int source, int sink);
 
 	// Новый метод для алгоритма MaxFlow-WO
@@ -103,10 +118,8 @@ public:
 	long long augmentFlow(int s, int t, double epsilon);
 	long long gargKonemannMaxFlow(int s, int t, double epsilon = 0.01);
 
-	long long PushRelabelMatrix(string s, string t, int max_pushes = 1000000);
-
-	long long DinicMaxFlow(string s, string t);
-	long long DinicMaxFlowMatrix(string s, string t);
+	long long DinicMaxFlow(int s, int t);
+	long long DinicMaxFlowMatrix(int s, int t);
 
 
 	void TransformToRandomFlowGraph(string name, unsigned int countNodes, float density, unsigned int maxWeightValues);

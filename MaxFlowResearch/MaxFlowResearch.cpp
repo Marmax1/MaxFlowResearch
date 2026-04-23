@@ -184,7 +184,7 @@ public:
 		cout << "9. Вернуться ко всем графам\n";
 		cout << "0. Выход\n";
 
-		string name1, name2;
+		int node1, node2;
 		int num = 0;
 		(cin >> comm).get();
 		system("cls");
@@ -196,9 +196,9 @@ public:
 			cout << "\nТекущий граф:\n";
 			myBase.WriteToConsole();
 			cout << "Введите название вершины: ";
-			getline(cin, name1);
+			(cin >> node1).get();
 			try {
-				myBase.AddNode(name1);
+				myBase.AddNode(node1);
 			}
 			catch (string errorMessage) {
 				cout << errorMessage << '\n';
@@ -208,10 +208,10 @@ public:
 			cout << "\nТекущий граф:\n";
 			myBase.WriteToConsole();
 
-			AskAboutWay(name1, name2, num);
+			AskAboutWay(node1, node2, num);
 
 			try {
-				myBase.AddEdge(name1, name2, num);
+				myBase.AddEdge(node1, node2, num);
 			}
 			catch (int error) {
 				bool ans;
@@ -221,21 +221,21 @@ public:
 
 				if (ans) {
 					if (error == 1) {
-						myBase.AddNode(name1);
+						myBase.AddNode(node1);
 					}
 					else if (error == 2) {
-						myBase.AddNode(name2);
+						myBase.AddNode(node2);
 					}
 					else if (error == 3) {
-						myBase.AddNode(name1);
-						myBase.AddNode(name2);
+						myBase.AddNode(node1);
+						myBase.AddNode(node2);
 					}
 				}
 				else {
 					return 2;
 				}
 
-				myBase.AddEdge(name1, name2, num);
+				myBase.AddEdge(node1, node2, num);
 			}
 			catch (string errorMessage) {
 				cout << errorMessage << '\n';
@@ -254,7 +254,7 @@ public:
 				}
 
 				if (ans) {
-					myBase.ChangeValueWay(name1, name2, num);
+					myBase.ChangeValueWay(node1, node2, num);
 				}
 				else {
 					return 2;
@@ -266,9 +266,9 @@ public:
 			myBase.WriteToConsole();
 
 			cout << "Введите название вершины: ";
-			getline(cin, name1);
+			(cin >> node1).get();
 			try {
-				myBase.DeleteNode(name1);
+				myBase.DeleteNode(node1);
 			}
 			catch (string errorMessage) {
 				cout << errorMessage << '\n';
@@ -279,9 +279,9 @@ public:
 			myBase.WriteToConsole();
 
 			int value;
-			AskAboutWay(name1, name2, value, false);
+			AskAboutWay(node1, node2, value, false);
 			try {
-				myBase.DeleteEdge(name1, name2);
+				myBase.DeleteEdge(node1, node2);
 			}
 			catch (string errorMessage) {
 				cout << errorMessage << '\n';
@@ -294,7 +294,7 @@ public:
 		}
 	}
 private:
-	void AskAboutWay(string& from, string& to, int& value, bool isForAdd = true) {
+	void AskAboutWay(int& from, int& to, int& value, bool isForAdd = true) {
 
 		int type = 0;
 		if (myBase.IsWeighted() && isForAdd) {
@@ -351,6 +351,7 @@ public:
 		(cin >> comm).get();
 		system("cls");
 		int num;
+		int s, t;
 		try {
 			switch (comm) {
 			case 0:
@@ -360,7 +361,8 @@ public:
 				cout << "\nТекущий граф:\n";
 				myBase.WriteToConsole();
 				cout << "Введите s и t через пробел\n";
-				cout << "Максимальный поток равен " << myBase.GetMaxFlowFordFulkerson("source", "sink") << '\n';
+				(cin >> s >> t).get();
+				cout << "Максимальный поток равен " << myBase.GetMaxFlowFordFulkerson(s, t) << '\n';
 				return 3;
 			case 2:
 				cout << "\nТекущий граф:\n";
@@ -370,7 +372,9 @@ public:
 			case 3:
 				cout << "\nТекущий граф:\n";
 				myBase.WriteToConsole();
-				cout << "Максимальный поток равен " << myBase.GetMaxFlowDinic("source", "sink") << '\n';
+				cout << "Введите s и t через пробел\n";
+				(cin >> s >> t).get();
+				cout << "Максимальный поток равен " << myBase.GetMaxFlowDinic(s, t) << '\n';
 				return 3;
 			case 4:
 				cout << "\nТекущий граф:\n";
