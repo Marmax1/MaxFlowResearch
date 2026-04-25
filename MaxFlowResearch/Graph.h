@@ -14,25 +14,27 @@
 
 using namespace std;
 
-typedef pair<vector<string>, long long> way;
-
 class Graph
 {
 private:
 	struct Edge {
 		int to, rev;  // rev - индекс обратного ребра
 		long long cap, flow;
+		Edge(int to, int rev, long long capacity)
+			: to(to), rev(rev), cap(capacity), flow(0) {
+		}
+
 	};
 
 	string name;
-	unordered_map<int, unordered_map<int, long long>> nodes;
+	
 	bool weighted;
 	bool oriented;
 	unordered_set<int> visited;
 
+	unordered_map<int, unordered_map<int, long long>> nodes;
 	vector<vector<long long>> adjacencyMatrix;
 	vector<vector<Edge>> adj;
-	unordered_map<string, int> nodeIndexMap;
 
 	bool IsNodeVisited(int node);
 	vector<string> MergeVectors(vector<string> first, vector<string> second);
@@ -57,6 +59,7 @@ private:
 	bool bfsWithEdges(int s, int t, vector<int>& level);
 	long long dfsWithEdges(int u, int t, long long flow, vector<int>& ptr, vector<int>& level);
 
+	void globalRelabelEdges(vector<long long>& height, int sink);
 
 	//для приближённого
 	vector<vector<long long>> residual;  // Остаточные пропускные способности
@@ -81,6 +84,10 @@ public:
 	void BuildAdjacencyListFromMatrix();
 	string GetName();
 	void SetName(string name);
+	vector<vector<long long>> GetMatrix();
+	void SetMatrix(vector<vector<long long>> martix);
+	unordered_map<int, unordered_map<int, long long>> GetAdjList();
+	void SetAdjList(unordered_map<int, unordered_map<int, long long>> nodes);
 	long long GetWeight(int nodeFrom, int nodeWhere);
 	void AddNode(int node);
 	void CopyNode(int node, int nameNewNode);
@@ -100,7 +107,7 @@ public:
 	long long getMaxFlowPushRelabel(int source, int sink);
 	long long getMaxFlowPushRelabel_HLF(int source, int sink);
 	long long getMaxFlowPushRelabel_HLF_GlRel(int source, int sink);
-	long long getMaxFlowPushRelabel_HLF_GlRelUnordered_map(int source, int sink);
+	long long getMaxFlowPushRelabel_HLF_GlRelEdges(int source, int sink);
 
 	// Новый метод для алгоритма Диница
 	long long getMaxFlowDinicMatrix(int source, int sink);
@@ -121,8 +128,11 @@ public:
 	long long DinicMaxFlow(int s, int t);
 	long long DinicMaxFlowMatrix(int s, int t);
 
-
+	
 	void TransformToRandomFlowGraph(string name, unsigned int countNodes, float density, unsigned int maxWeightValues);
+	void TransformToRandomGraph(string name, unsigned int countNodes, float density, unsigned int maxWeightValues);
+	void TransformToCompleteGraph(string name, unsigned int countNodes, unsigned int maxWeightValues);
+	void TransformToBipartiteGraph(string name, unsigned int countNodes, float density, unsigned int maxWeightValues);
 
 	friend std::ostream& operator<< (std::ostream& out, const Graph& graph);
 	~Graph();

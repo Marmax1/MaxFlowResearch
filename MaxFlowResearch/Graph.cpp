@@ -2,36 +2,10 @@
 #include <numeric>
 #include <functional>
 
-typedef pair<string, long long> edgePair;
-
-class Compare
-{
-public:
-	bool operator() (edgePair a, edgePair b)
-	{
-		return b.second < a.second;
-	}
-};
-
-class CompareWay {
-public:
-	bool operator() (way& a, way& b)
-	{
-		return b.second < a.second;
-	}
-};
-
-
 bool Graph::IsNodeVisited(int node) {
 	if (visited.find(node) == visited.end())
 		return false;
 	return true;
-}
-
-vector<string> Graph::MergeVectors(vector<string> first, vector<string> second) {
-	vector<string> vec(first);
-	vec.insert(vec.end(), second.begin(), second.end());
-	return vec;
 }
 
 //long long Graph::DFSWithDelta(string u, string t, long long delta, unordered_map<string, string>& parent) {
@@ -147,12 +121,37 @@ Graph::Graph(const Graph& gr) {
 void Graph::BuildAdjEdgesFromMatrix() {
 	int n = adjacencyMatrix.size();
 	adj.resize(n);
-	for (int from = 0; from < n; from++) {
-		for (int to = from; to < n; to++) {
-			long long capacity = adjacencyMatrix[from][to];
+
+	// Для каждого направленного ребра в матрице
+	for (int i = 0; i < n; i++) {
+		for (int j = 0; j < n; j++) {
+			long long capacity = adjacencyMatrix[i][j];
+
 			if (capacity != 0) {
-				adj[from].push_back({ to, capacity, (int)adj[to].size() });
-				adj[to].push_back({ from, 0, (int)adj[from].size() - 1 });
+				// Проверяем, не создаем ли мы петлю (цикл из вершины в себя)
+				if (i == j) {
+					continue;
+				}
+
+				// Проверяем существование обратного ребра (j -> i)
+				bool reverseExists = false;
+				for (Edge& e : adj[i]) {
+					if (e.to == j) {
+						// Ребро уже существует - обновляем пропускную способность
+						e.cap += capacity;
+						reverseExists = true;
+						break;
+					}
+				}
+
+				if (!reverseExists) {
+					// Создаем новое ребро
+					Edge forward(j, adj[j].size(), capacity);
+					Edge backward(i, adj[i].size(), 0);
+
+					adj[i].push_back(forward);
+					adj[j].push_back(backward);
+				}
 			}
 		}
 	}
@@ -295,8 +294,158 @@ void Graph::TransformToRandomFlowGraph(string name, unsigned int countNodes, flo
 	}
 
 	BuildAdjacencyListFromMatrix();
-	/*BuildAdjEdgesFromMatrix();
-	initGargKonemann();*/
+	BuildAdjEdgesFromMatrix();
+	//initGargKonemann();
+}
+
+void Graph::TransformToRandomGraph(string name, unsigned int countNodes, float density, unsigned int maxWeightValues) {
+	if (countNodes < 2) {
+		throw invalid_argument("Flow graph must have at least 2 nodes");
+	}
+
+	DeleteAllNodes();
+	this->name = name;
+	this->weighted = true;
+	this->oriented = true;
+
+	// Инициализация генератора случайных чисел
+	std::random_device rd;
+	std::mt19937 gen(rd());
+	std::uniform_int_distribution<> weightDis(1, maxWeightValues);
+
+	// Создание матрицы смежности
+	adjacencyMatrix.assign(countNodes, std::vector<long long>(countNodes, 0));
+
+	// Заполнение графа с заданной плотностью
+	int totalPossibleEdges = countNodes * (countNodes - 1); // Для ориентированного графа без петель
+	int targetEdges = static_cast<int>(density * totalPossibleEdges);
+	int edgesAdded = 0;
+
+	// Добавляем ребра случайным образом до достижения нужной плотности
+	while (edgesAdded < targetEdges) {
+		int i = gen() % countNodes;
+		int j = gen() % countNodes;
+
+		// Пропускаем петли 
+		if (i == j) continue;
+
+		// Если ребра еще нет, добавляем его
+		if (adjacencyMatrix[i][j] == 0) {
+			long long weight = weightDis(gen);
+			adjacencyMatrix[i][j] = weight;
+			edgesAdded++;
+		}
+	}
+
+	BuildAdjacencyListFromMatrix();
+	BuildAdjEdgesFromMatrix();
+}
+
+void Graph::TransformToCompleteGraph(string name, unsigned int countNodes, unsigned int maxWeightValues) {
+	if (countNodes < 2) {
+		throw invalid_argument("Flow graph must have at least 2 nodes");
+	}
+
+	DeleteAllNodes();
+	this->name = name;
+	this->weighted = true;
+	this->oriented = true;
+	
+	// Инициализация генератора случайных чисел
+	std::random_device rd;
+	std::mt19937 gen(rd());
+	std::uniform_int_distribution<> weightDis(1, maxWeightValues);
+
+	// Создание полной матрицы смежности
+	adjacencyMatrix.assign(countNodes, std::vector<long long>(countNodes, 0));
+
+	// Заполнение всех возможных ребер (кроме петель)
+	for (unsigned int i = 0; i < countNodes; i++) {
+		for (unsigned int j = 0; j < countNodes; j++) {
+			if (i != j) {
+				adjacencyMatrix[i][j] = weightDis(gen);
+			}
+		}
+	}
+
+	BuildAdjacencyListFromMatrix();
+	BuildAdjEdgesFromMatrix();
+}
+// Случайное разбиение на доли
+// Добавление рёбер между долями
+// Подключение источника и стока
+void Graph::TransformToBipartiteGraph(string name, unsigned int countNodes, float density, unsigned int maxWeightValues) {
+	if (countNodes < 2) {
+		throw invalid_argument("Flow graph must have at least 2 nodes");
+	}
+	
+	DeleteAllNodes();
+	this->name = name;
+	this->weighted = true;
+	this->oriented = true;
+	
+	// Инициализация генератора случайных чисел
+	std::random_device rd;
+	std::mt19937 gen(rd());
+	std::uniform_int_distribution<> weightDis(1, maxWeightValues);
+	std::uniform_int_distribution<> partitionDis(1, countNodes - 1);
+
+	// Определяем размеры долей (случайное разбиение, но каждая доля не пуста)
+	unsigned int firstPartSize = partitionDis(gen);
+	unsigned int secondPartSize = countNodes - firstPartSize;
+
+	// Общее количество вершин: исходные вершины + источник (index = countNodes) + сток (index = countNodes + 1)
+	unsigned int totalNodes = countNodes + 2;
+	adjacencyMatrix.assign(totalNodes, std::vector<long long>(totalNodes, 0));
+
+	// Источник (source) имеет индекс countNodes
+	unsigned int sourceIdx = countNodes;
+	// Сток (sink) имеет индекс countNodes + 1
+	unsigned int sinkIdx = countNodes + 1;
+
+	// Вычисляем максимальное количество возможных ребер между долями
+	int totalPossibleEdges = firstPartSize * secondPartSize * 2; // Умножаем на 2 для ориентированного графа
+	int targetEdges = static_cast<int>(density * totalPossibleEdges);
+	int edgesAdded = 0;
+
+	// Добавляем ребра только между разными долями
+	while (edgesAdded < targetEdges) {
+		// Выбираем случайную пару вершин из разных долей
+		unsigned int i, j;
+		if (gen() % 2 == 0) {
+			// Ребро из первой доли во вторую
+			i = gen() % firstPartSize;
+			j = firstPartSize + (gen() % secondPartSize);
+		}
+		else {
+			// Ребро из второй доли в первую
+			i = firstPartSize + (gen() % secondPartSize);
+			j = gen() % firstPartSize;
+		}
+
+		// Если ребра еще нет, добавляем его
+		if (adjacencyMatrix[i][j] == 0) {
+			long long weight = weightDis(gen);
+			adjacencyMatrix[i][j] = weight;
+			edgesAdded++;
+		}
+	}
+
+	// Добавляем ребра от источника ко всем вершинам первой доли
+	for (unsigned int i = 0; i < firstPartSize; i++) {
+		long long weight = weightDis(gen);
+		adjacencyMatrix[sourceIdx][i] = weight;
+	}
+	
+	// Добавляем ребра от всех вершин второй доли к стоку
+	for (unsigned int i = 0; i < secondPartSize; i++) {
+		unsigned int nodeIdx = firstPartSize + i;
+		long long weight = weightDis(gen);
+		adjacencyMatrix[nodeIdx][sinkIdx] = weight;
+	}
+
+	BuildAdjacencyListFromMatrix();
+	BuildAdjEdgesFromMatrix();
 }
 
 bool Graph::IsNodeExist(int node) {
@@ -328,6 +477,22 @@ string Graph::GetName() {
 
 void Graph::SetName(string name) {
 	this->name = name;
+}
+
+vector<vector<long long>> Graph::GetMatrix() {
+	return adjacencyMatrix;
+}
+
+void Graph::SetMatrix(vector<vector<long long>> martix) {
+	this->adjacencyMatrix = martix;
+}
+
+unordered_map<int, unordered_map<int, long long>> Graph::GetAdjList() {
+	return nodes;
+}
+
+void Graph::SetAdjList(unordered_map<int, unordered_map<int, long long>> nodes) {
+	this->nodes = nodes;
 }
 
 long long Graph::GetWeight(int nodeFrom, int nodeWhere) {
@@ -670,32 +835,7 @@ long long Graph::FordFulkersonScalingApproximate(int s, int t, double eps) {
 
 long long Graph::DinicMaxFlow(int s, int t) {
 
-	// Структура для хранения рёбер
-	struct Edge {
-		int to;
-		long long capacity;
-		long long flow;
-		size_t reverse_edge;
-	};
-
-	unordered_map<int, vector<Edge>> adj;
 	unordered_map<int, size_t> level;
-
-	// Построение остаточной сети
-	for (const auto& u : nodes) {
-		for (const auto& edge : u.second) {
-			int v = edge.first;
-			long long cap = edge.second;
-
-			// Прямое ребро
-			Edge forward = { v, cap, 0, adj[v].size() };
-			// Обратное ребро (для остаточной сети)
-			Edge backward = { u.first, 0, 0, adj[u.first].size() };
-
-			adj[u.first].push_back(forward);
-			adj[v].push_back(backward);
-		}
-	}
 
 	long long max_flow = 0;
 
@@ -711,7 +851,7 @@ long long Graph::DinicMaxFlow(int s, int t) {
 			q.pop();
 
 			for (const Edge& e : adj[u]) {
-				if (!level.count(e.to) && e.flow < e.capacity) {
+				if (!level.count(e.to) && e.flow < e.cap) {
 					level[e.to] = level[u] + 1;
 					q.push(e.to);
 				}
@@ -728,13 +868,13 @@ long long Graph::DinicMaxFlow(int s, int t) {
 
 		for (size_t i = 0; i < adj[u].size(); ++i) {
 			Edge& e = adj[u][i];
-			if (level[e.to] == level[u] + 1 && e.flow < e.capacity) {
-				long long min_flow = min(flow, e.capacity - e.flow);
+			if (level[e.to] == level[u] + 1 && e.flow < e.cap) {
+				long long min_flow = min(flow, e.cap - e.flow);
 				long long pushed = dfs(e.to, min_flow);
 
 				if (pushed > 0) {
 					e.flow += pushed;
-					adj[e.to][e.reverse_edge].flow -= pushed;
+					adj[e.to][e.rev].flow -= pushed;
 					return pushed;
 				}
 			}
@@ -746,74 +886,6 @@ long long Graph::DinicMaxFlow(int s, int t) {
 	while (bfs()) {
 		long long pushed;
 		while ((pushed = dfs(s, INF)) > 0) {
-			max_flow += pushed;
-		}
-	}
-
-	return max_flow;
-}
-
-long long Graph::DinicMaxFlowMatrix(int s, int t) {
-	size_t n = adjacencyMatrix.size();
-	size_t source = s;
-	size_t sink = t;
-
-	vector<vector<long long>> residual(n, vector<long long>(n));
-	for (size_t i = 0; i < n; ++i) {
-		for (size_t j = 0; j < n; ++j) {
-			residual[i][j] = adjacencyMatrix[i][j];
-		}
-	}
-
-	vector<size_t> level(n);
-	long long max_flow = 0;
-
-	// BFS для построения слоистой сети
-	auto bfs = [&]() {
-		fill(level.begin(), level.end(), 0);
-		queue<size_t> q;
-		q.push(source);
-		level[source] = 1;
-
-		while (!q.empty()) {
-			size_t u = q.front();
-			q.pop();
-
-			for (size_t v = 0; v < n; ++v) {
-				if (!level[v] && residual[u][v] > 0) {
-					level[v] = level[u] + 1;
-					q.push(v);
-				}
-			}
-		}
-		return level[sink] != 0;
-		};
-
-	// DFS для поиска блокирующего потока
-	function<long long(size_t, long long)> dfs = [&](size_t u, long long flow) {
-		if (u == sink) {
-			return flow;
-		}
-
-		for (size_t v = 0; v < n; ++v) {
-			if (level[v] == level[u] + 1 && residual[u][v] > 0) {
-				long long min_flow = min(flow, residual[u][v]);
-				long long pushed = dfs(v, min_flow);
-
-				if (pushed > 0) {
-					residual[u][v] -= pushed;
-					residual[v][u] += pushed;
-					return pushed;
-				}
-			}
-		}
-		return 0LL;
-		};
-
-	// Основной цикл
-	while (bfs()) {
-		long long pushed;
-		while ((pushed = dfs(source, INF)) > 0) {
 			max_flow += pushed;
 		}
 	}
@@ -959,9 +1031,7 @@ long long Graph::getMaxFlowPushRelabel_HLF(int source, int sink) {
 
 
 
-void globalRelabel(const vector<vector<long long>>& capacity,
-	const vector<vector<long long>>& flow,
-	vector<long long>& height, int sink) {
+void globalRelabel(const vector<vector<long long>>& capacity, const vector<vector<long long>>& flow, vector<long long>& height, int sink) {
 	int n = height.size();
 	fill(height.begin(), height.end(), n);
 	height[sink] = 0;
@@ -1076,12 +1146,9 @@ long long Graph::getMaxFlowPushRelabel_HLF_GlRel(int source, int sink) {
 
 
 
-// С unordered_map
-void globalRelabelUnordered_map(const unordered_map<int, unordered_map<int, long long>>& nodes,
-	const unordered_map<int, unordered_map<int, long long>>& flow,
-	vector<long long>& height, int sink) {
-	int n = height.size();
-	fill(height.begin(), height.end(), n);
+// С Edges
+void Graph::globalRelabelEdges(vector<long long>& height, int sink) {
+	fill(height.begin(), height.end(), adj.size());
 	height[sink] = 0;
 	queue<int> q;
 	q.push(sink);
@@ -1090,39 +1157,19 @@ void globalRelabelUnordered_map(const unordered_map<int, unordered_map<int, long
 		int u = q.front();
 		q.pop();
 
-		// Перебираем все возможные вершины v (0..n-1)
-		for (int v = 0; v < n; v++) {
-			// Проверяем остаточную пропускную способность ребра v->u
-			long long cap_vu = 0;
-			auto it_v = nodes.find(v);
-			if (it_v != nodes.end()) {
-				auto it_edge = it_v->second.find(u);
-				if (it_edge != it_v->second.end()) {
-					cap_vu = it_edge->second;
-				}
-			}
-
-			long long flow_vu = 0;
-			auto it_flow_v = flow.find(v);
-			if (it_flow_v != flow.end()) {
-				auto it_flow_edge = it_flow_v->second.find(u);
-				if (it_flow_edge != it_flow_v->second.end()) {
-					flow_vu = it_flow_edge->second;
-				}
-			}
-
-			if (cap_vu - flow_vu > 0 && height[v] == n) {
-				height[v] = height[u] + 1;
-				q.push(v);
+		for (const auto& e : adj[u]) {
+			// Проверяем обратное ребро (e.to -> u)
+			Edge& revEdge = adj[e.to][e.rev];
+			if (revEdge.cap - revEdge.flow > 0 && height[e.to] == adj.size()) {
+				height[e.to] = height[u] + 1;
+				q.push(e.to);
 			}
 		}
 	}
 }
 
-// Метод для вычисления максимального потока алгоритмом Push-Relabel c Highest Label First (HLF) и globalRelabel
-long long Graph::getMaxFlowPushRelabel_HLF_GlRelUnordered_map(int source, int sink) {
-	int n = nodes.size();
-	unordered_map<int, unordered_map<int, long long>> flow;
+long long Graph::getMaxFlowPushRelabel_HLF_GlRelEdges(int source, int sink) {
+	int n = adj.size();
 	vector<long long> height(n, 0);
 	vector<long long> excess(n, 0);
 	vector<vector<int>> buckets(2 * n);
@@ -1133,22 +1180,16 @@ long long Graph::getMaxFlowPushRelabel_HLF_GlRelUnordered_map(int source, int si
 	height[source] = n;
 
 	// Начальное насыщение рёбер из истока
-	auto it_source = nodes.find(source);
-	if (it_source != nodes.end()) {
-		for (auto& edge : it_source->second) {
-			int v = edge.first;
-			long long cap = edge.second;
-			if (cap > 0) {
-				flow[source][v] = cap;
-				flow[v][source] = -cap;
-				excess[v] = cap;
-				excess[source] -= cap;
-				if (v != sink && v != source) {
-					buckets[height[v]].push_back(v);
-					if (height[v] > max_height) {
-						max_height = height[v];
-					}
-				}
+	for (auto& e : adj[source]) {
+		if (e.cap > 0) {
+			e.flow = e.cap;
+			adj[e.to][e.rev].flow = -e.cap;
+			excess[e.to] += e.cap;
+			excess[source] -= e.cap;
+
+			if (e.to != sink && e.to != source) {
+				buckets[height[e.to]].push_back(e.to);
+				max_height = max(max_height, height[e.to]);
 			}
 		}
 	}
@@ -1162,65 +1203,29 @@ long long Graph::getMaxFlowPushRelabel_HLF_GlRelUnordered_map(int source, int si
 		int u = buckets[max_height].back();
 		buckets[max_height].pop_back();
 
-		// Пытаемся протолкнуть поток
-		bool pushed = false;
-		auto it_u = nodes.find(u);
-		if (it_u != nodes.end()) {
-			for (auto& edge : it_u->second) {
-				int v = edge.first;
-				long long cap_uv = edge.second;
-				if (excess[u] <= 0) break;
+		// Проталкивание потока
+		for (auto& e : adj[u]) {
+			if (excess[u] == 0) break;
+			if (e.cap - e.flow > 0 && height[u] == height[e.to] + 1) {
+				long long delta = min(excess[u], e.cap - e.flow);
+				e.flow += delta;
+				adj[e.to][e.rev].flow -= delta;
+				excess[u] -= delta;
+				excess[e.to] += delta;
 
-				long long flow_uv = 0;
-				auto it_flow_u = flow.find(u);
-				if (it_flow_u != flow.end()) {
-					auto it_flow_uv = it_flow_u->second.find(v);
-					if (it_flow_uv != it_flow_u->second.end()) {
-						flow_uv = it_flow_uv->second;
-					}
-				}
-
-				if (cap_uv - flow_uv > 0 && height[u] == height[v] + 1) {
-					long long delta = min(excess[u], cap_uv - flow_uv);
-					flow[u][v] += delta;
-					flow[v][u] -= delta;
-					excess[u] -= delta;
-					excess[v] += delta;
-
-					if (excess[v] == delta && v != source && v != sink) {
-						buckets[height[v]].push_back(v);
-						if (height[v] > max_height) {
-							max_height = height[v];
-						}
-					}
-					pushed = true;
+				if (excess[e.to] == delta && e.to != source && e.to != sink) {
+					buckets[height[e.to]].push_back(e.to);
+					max_height = max(max_height, height[e.to]);
 				}
 			}
 		}
 
-		// Если не удалось протолкнуть - поднимаем вершину
+		// Подъём вершины
 		if (excess[u] > 0) {
 			long long min_height = LLONG_MAX;
-			auto it_u_nodes = nodes.find(u);
-			if (it_u_nodes != nodes.end()) {
-				for (auto& edge : it_u_nodes->second) {
-					int v = edge.first;
-					long long cap_uv = edge.second;
-
-					long long flow_uv = 0;
-					auto it_flow_u = flow.find(u);
-					if (it_flow_u != flow.end()) {
-						auto it_flow_uv = it_flow_u->second.find(v);
-						if (it_flow_uv != it_flow_u->second.end()) {
-							flow_uv = it_flow_uv->second;
-						}
-					}
-
-					if (cap_uv - flow_uv > 0) {
-						if (height[v] < min_height) {
-							min_height = height[v];
-						}
-					}
+			for (auto& e : adj[u]) {
+				if (e.cap - e.flow > 0) {
+					min_height = min(min_height, height[e.to]);
 				}
 			}
 
@@ -1228,19 +1233,15 @@ long long Graph::getMaxFlowPushRelabel_HLF_GlRelUnordered_map(int source, int si
 				height[u] = min_height + 1;
 				relabel_counter++;
 
-				// Периодически выполняем глобальное перемаркирование
 				if (relabel_counter >= n) {
-					globalRelabelUnordered_map(nodes, flow, height, sink);
+					globalRelabelEdges(height, sink);
 					relabel_counter = 0;
+					// Перестраиваем buckets
 					max_height = 0;
 					for (int v = 0; v < n; v++) {
-						if (excess[v] > 0 && v != source && v != sink) {
-							if (height[v] < n) {
-								buckets[height[v]].push_back(v);
-								if (height[v] > max_height) {
-									max_height = height[v];
-								}
-							}
+						if (excess[v] > 0 && v != source && v != sink && height[v] < n) {
+							buckets[height[v]].push_back(v);
+							max_height = max(max_height, height[v]);
 						}
 					}
 					continue;
@@ -1248,9 +1249,7 @@ long long Graph::getMaxFlowPushRelabel_HLF_GlRelUnordered_map(int source, int si
 
 				if (height[u] < n) {
 					buckets[height[u]].push_back(u);
-					if (height[u] > max_height) {
-						max_height = height[u];
-					}
+					max_height = max(max_height, height[u]);
 				}
 			}
 		}

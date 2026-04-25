@@ -37,7 +37,13 @@ public:
 	long long gargKonemannMaxFlow();
 
 	//Сравнение методов по скорости
-	void CompareMethods(unsigned int countNodes, float density, unsigned int maxWeightValue, unsigned int countGraphs, const vector<string>& methodNames);
+	// graphType:
+	// 0 - Ориентированный ациклический граф
+	// 1 - Ориентированный случайный граф
+	// 2 - Полный граф
+	// 3 - Двудольный граф
+	void CompareMethods(unsigned int countNodes, float density, long long maxWeightValue, 
+		unsigned int countGraphs, unsigned int graphType, const vector<string>& methodNames);
 	void ComparePushRelabelMethods();
 	void CompareDinicMethods();
 	void CompareBestMaxFlowMetods();
@@ -47,7 +53,10 @@ public:
 	density - плотность (from 0 to 1)
 	Значения дуг от 1 до maxWeightValue
 	*/
-	void CreateRandomFlowGraph(unsigned int countNodes = 10, float density = 0.4, unsigned int maxWeightValue = 10000);
+	void CreateRandomFlowGraph(unsigned int& outEdgesCount, unsigned int countNodes = 10, float density = 0.4, unsigned int maxWeightValue = 10000);
+	void CreateRandomGraph(unsigned int& outEdgesCount, unsigned int countNodes = 10, float density = 0.4, unsigned int maxWeightValue = 10000);
+	void CreateCompleteGraph(unsigned int& outEdgesCount, unsigned int countNodes = 10, unsigned int maxWeightValue = 10000);
+	void CreateBipartiteGraph(unsigned int& outEdgesCount, unsigned int countNodes = 10, float density = 0.4, unsigned int maxWeightValue = 10000);
 
 	~DataStorage();
 };

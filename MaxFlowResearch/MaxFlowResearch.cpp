@@ -55,14 +55,18 @@ public:
 	virtual int Menu() override {
 		cout << "\nВозможные команды:\n";
 		cout << "1. Создать случайный сетевой граф\n";
-		cout << "2. Сравнить скорости всех алгоритмов PushRelabel MaxFlow\n";
-		cout << "3. Сравнить скорости всех алгоритмов Dinic MaxFlow\n";
-		cout << "4. Сравнить скорости наилучших из алгоритмов MaxFlow\n";
+		cout << "2. Создать случайный граф\n";
+		cout << "3. Создать полный граф\n";
+		cout << "4. Создать случайный двудольный граф\n";
+		cout << "5. Сравнить скорости всех алгоритмов PushRelabel MaxFlow\n";
+		cout << "6. Сравнить скорости всех алгоритмов Dinic MaxFlow\n";
+		cout << "7. Сравнить скорости наилучших из алгоритмов MaxFlow\n";
 		if (lastMenu != -1) {
 			cout << "9. Вернуться ко всем графам\n";
 		}
 		cout << "0. Выход\n";
 		string name;
+		unsigned int out;
 		(cin >> comm).get();			// get для удаления символа \n
 		system("cls");
 		switch (comm) {
@@ -71,7 +75,7 @@ public:
 			return 0;
 		case 1:
 			try {
-				myBase.CreateRandomFlowGraph();
+				myBase.CreateRandomFlowGraph(out);
 			}
 			catch (string errorMessage) {
 				cout << errorMessage << '\n';
@@ -80,12 +84,42 @@ public:
 			lastMenu = 0;
 			return 1;
 		case 2:
+			try {
+				myBase.CreateRandomGraph(out);
+			}
+			catch (string errorMessage) {
+				cout << errorMessage << '\n';
+				return 0;
+			}
+			lastMenu = 0;
+			return 1;
+		case 3:
+			try {
+				myBase.CreateCompleteGraph(out);
+			}
+			catch (string errorMessage) {
+				cout << errorMessage << '\n';
+				return 0;
+			}
+			lastMenu = 0;
+			return 1;
+		case 4:
+			try {
+				myBase.CreateBipartiteGraph(out);
+			}
+			catch (string errorMessage) {
+				cout << errorMessage << '\n';
+				return 0;
+			}
+			lastMenu = 0;
+			return 1;
+		case 5:
 			myBase.ComparePushRelabelMethods();
 			return 0;
-		case 3:
+		case 6:
 			myBase.CompareDinicMethods();
 			return 0;
-		case 4:
+		case 7:
 			myBase.CompareBestMaxFlowMetods();
 			return 0;
 		case 9:
